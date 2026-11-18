@@ -1,35 +1,13 @@
 import { useState } from 'react';
 import { temServidor } from '../auth.js';
-import { mensagemErro } from '../ponto-lib.js';
+import AcessoBox from '../components/AcessoBox.jsx';
 import { brl } from '../lib.js';
-import { rpc } from '../sync.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
 import { Icon, Money } from '../ui.jsx';
 
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
-
-/* login do motorista (só com Supabase): liga um usuário criado em Authentication > Users */
-function Acesso({ m }) {
-  const [email, setEmail] = useState('');
-  const [msg, setMsg] = useState(null);
-  const [busy, setBusy] = useState(false);
-  async function dar() {
-    setBusy(true); setMsg(null);
-    try { await rpc('definir_acesso_motorista', { p_motorista: m.id, p_email: email.trim() }); setEmail(''); await recarregar(); setMsg({ ok: true, t: 'Acesso liberado.' }); }
-    catch (e) { setMsg({ ok: false, t: mensagemErro(e) }); }
-    setBusy(false);
-  }
-  return (
-    <div style={{ flex: '1 1 100%' }}>
-      <div className="row"><span className={`tag ${m.vinculado ? 'ok' : ''}`}>{m.vinculado ? 'Com acesso ao app' : 'Sem acesso ao app'}</span>
-        <input className="inp" style={{ flex: '1 1 220px' }} type="email" aria-label={`E-mail de acesso de ${m.nome}`} placeholder="E-mail do usuário (criado em Authentication > Users)" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn sm" disabled={busy || !email.trim()} onClick={dar}>{m.vinculado ? 'Trocar acesso' : 'Dar acesso'}</button></div>
-      {msg && <p role="status" className={`small ${msg.ok ? 'muted' : 'l-err'}`}>{msg.t}</p>}
-    </div>
-  );
-}
 
 /* campo de meta: vazio = sem meta */
 const Meta = ({ m, valor, onChange }) => (
@@ -61,7 +39,7 @@ export default function Ajustes() {
               <label className="f" style={{ flex: '2 1 200px' }}>Nome<Texto valor={x.nome} onSave={(v) => act.upd('motoristas', x.id, { nome: v })} /></label>
               <label className="f" style={{ flex: '1 1 130px' }}>Tipo<select className="sel" value={x.tipo} onChange={(ev) => act.upd('motoristas', x.id, { tipo: ev.target.value })}><option value="pacote">Por pacote</option><option value="fixo">Fixo (mensal)</option></select></label>
               <label className="f" style={{ flex: '1 1 130px' }}>{x.tipo === 'fixo' ? 'Salário mensal' : 'Por pacote'}<Money valor={x.valor} onChange={(v) => act.upd('motoristas', x.id, { valor: v })} /></label>
-              {temServidor && <Acesso m={x} />}
+              {temServidor && <AcessoBox tipo="motorista" item={x} aoMudar={recarregar} />}
               <button className="btn sm danger" onClick={() => window.confirm(`Remover ${x.nome}? As paradas dele ficam sem motorista.`) && (act.del('motoristas', x.id), S.paradas.filter((p) => p.motoristaId === x.id).forEach((p) => act.upd('paradas', p.id, { motoristaId: null })))} aria-label={`Remover ${x.nome}`}><Icon n="x" size={14} /></button>
             </div>
           ))}

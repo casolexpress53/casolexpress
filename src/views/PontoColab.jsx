@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { dataBR, hoje, MESES, parse } from '../lib.js';
-import { folhaMes, hhmm, mensagemErro, proximos, resumoDia, ROTULO, fmtMin, TIPOS } from '../ponto-lib.js';
+import { dataBR, MESES, parse } from '../lib.js';
+import { fmtHoraSeg, folhaMes, hhmm, hojeBR, mensagemErro, proximos, resumoDia, ROTULO, fmtMin, TIPOS } from '../ponto-lib.js';
 import { usePontoColab } from '../ponto.js';
 import { Chips, Vazio } from '../ui.jsx';
 import PontoFolha, { NavMes } from './PontoFolha.jsx';
@@ -12,11 +12,11 @@ const STATUS = { pendente: ['warn', 'Aguardando'], aprovado: ['ok', 'Aprovado'],
 function Relogio() {
   const [t, setT] = useState(() => new Date());
   useEffect(() => { const i = setInterval(() => setT(new Date()), 1000); return () => clearInterval(i); }, []);
-  const p = (n) => String(n).padStart(2, '0');
-  const dia = parse(hoje());
+  const [hm, ss] = [fmtHoraSeg.format(t).slice(0, 5), fmtHoraSeg.format(t).slice(5)];   // relógio no horário de Brasília
+  const dia = parse(hojeBR());
   return (
     <div style={{ textAlign: 'center', margin: '18px 0 6px' }}>
-      <div className="relogio" aria-hidden="true">{p(t.getHours())}:{p(t.getMinutes())}<small>:{p(t.getSeconds())}</small></div>
+      <div className="relogio" aria-hidden="true">{hm}<small>{ss}</small></div>
       <p className="muted small">{['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][dia.getDay()]}, {dia.getDate()} de {MESES[dia.getMonth()].toLowerCase()}</p>
     </div>
   );
@@ -25,7 +25,7 @@ function Relogio() {
 /* Visão do celular do colaborador: bater ponto, ver o mês e pedir ajuste.
    Usada pelo colaborador (login) e, na demonstração, pelo dono em "Ver como". */
 export default function PontoColab({ colaboradorId }) {
-  const hojeI = hoje();
+  const hojeI = hojeBR();
   const mesAtual = mesDe(hojeI);
   const [aba, setAba] = useState('hoje');
   const [mes, setMes] = useState(mesAtual);

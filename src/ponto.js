@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sb, temServidor } from './auth.js';
-import { iso, shiftMes } from './lib.js';
-import { dataDe, distMetros, INTERVALO_MIN_S, mensagemErro, PRECISAO_MAX, proximos, RAIO_PADRAO, TIPOS } from './ponto-lib.js';
+import { shiftMes } from './lib.js';
+import { dataDe, distMetros, emBR, hojeBR, INTERVALO_MIN_S, mensagemErro, PRECISAO_MAX, proximos, RAIO_PADRAO, TIPOS } from './ponto-lib.js';
 import { act, getState, useStore } from './store.js';
 
 /*
@@ -32,7 +32,7 @@ const rpc = async (nome, args) => { const { data, error } = await (await sb()).r
 
 /* ============================ DONO ============================ */
 const intervaloMes = (mes) => [mes, shiftMes(mes, 1)];
-const localDeDia = (data, hhmmTxt) => new Date(`${data}T${hhmmTxt}:00`).toISOString();
+const localDeDia = (data, hhmmTxt) => emBR(data, hhmmTxt);
 
 function useDonoLocal() {
   const S = useStore();
@@ -67,7 +67,7 @@ function useDonoServidor(mes) {
   const recarregar = useCallback(async () => {
     try {
       const c = await sb();
-      const [ini, fim] = intervaloMes(mes), hojeI = iso(new Date());
+      const [ini, fim] = intervaloMes(mes), hojeI = hojeBR();
       const [a, b, h, p] = await Promise.all([
         c.from('colaboradores').select('*').order('nome'),
         c.from('pontos').select('*').gte('dia', ini).lt('dia', fim),
@@ -110,7 +110,7 @@ function useColabLocal({ colaboradorId, mes }) {
   return useMemo(() => ({
     colab: c && { ...c, temLocal: c.lat != null && c.lng != null },
     batidas: S.pontos.filter((p) => p.colaboradorId === colaboradorId && dataDe(p.em) >= ini && dataDe(p.em) < fim),
-    hojeBatidas: S.pontos.filter((p) => p.colaboradorId === colaboradorId && dataDe(p.em) === iso(new Date())),
+    hojeBatidas: S.pontos.filter((p) => p.colaboradorId === colaboradorId && dataDe(p.em) === hojeBR()),
     pedidos: S.pedidosPonto.filter((p) => p.colaboradorId === colaboradorId).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
     carregando: false, erro: '', recarregar: () => {},
     async bater(tipo) {
@@ -121,7 +121,7 @@ function useColabLocal({ colaboradorId, mes }) {
       if (!(pos.precisao <= PRECISAO_MAX)) throw new Error('gps_fraco');
       const dist = Math.round(distMetros(pos, col));
       if (dist > (col.raio || RAIO_PADRAO)) throw new Error(`fora_do_local:${dist}`);
-      const hojeLista = g.pontos.filter((p) => p.colaboradorId === colaboradorId && dataDe(p.em) === iso(new Date()));
+      const hojeLista = g.pontos.filter((p) => p.colaboradorId === colaboradorId && dataDe(p.em) === hojeBR());
       const ultimo = hojeLista.reduce((m, p) => Math.max(m, new Date(p.em).getTime()), 0);
       if (Date.now() - ultimo < INTERVALO_MIN_S * 1000) throw new Error('muito_rapido');
       if (!proximos(hojeLista).includes(tipo)) throw new Error('sequencia_invalida');
@@ -129,7 +129,7 @@ function useColabLocal({ colaboradorId, mes }) {
       return { dist };
     },
     async pedirAjuste({ data, tipo, hora, motivo }) {
-      const g = getState(), hojeI = iso(new Date());
+      const g = getState(), hojeI = hojeBR();
       if (!motivo.trim()) throw new Error('motivo_obrigatorio');
       if (!data || !hora || data > hojeI) throw new Error('data_invalida');
       if (g.pedidosPonto.some((p) => p.colaboradorId === colaboradorId && p.data === data && p.tipo === tipo && p.status === 'pendente')) throw new Error('pedido_ja_pendente');
@@ -152,7 +152,7 @@ function useColabServidor({ mes }) {
     } catch (e) { if (meu === reqId.current) setD((x) => ({ ...x, carregando: false, erro: mensagemErro(e) })); }
   }, [mes]);
   useEffect(() => { recarregar(); }, [recarregar]);
-  const hojeISO = iso(new Date());
+  const hojeISO = hojeBR();
   return useMemo(() => ({
     ...d, recarregar,
     // "hoje" sai do mês carregado: a tela de hoje sempre chama este hook com o mês atual

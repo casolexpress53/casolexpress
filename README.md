@@ -39,7 +39,9 @@ Com as variáveis `VITE_SUPABASE_*`, o app **carrega tudo do Supabase ao entrar*
 - Campos novos do app que ainda não têm coluna são guardados em `extra` (jsonb), sem perda.
 - **Duas pessoas na mesma informação:** cada linha tem uma versão. Quem salva em cima de uma versão antiga é barrado pelo banco (nada é sobrescrito), recebe o aviso *“Outra pessoa alterou esta informação ao mesmo tempo…”* e a tela já recarrega com a versão mais nova. Quem está só olhando é avisado em até 30 s quando outra pessoa muda algo. Não há tempo real ainda.
 - Com dados reais, os botões *Apagar tudo* e *Carregar dados fictícios* ficam travados (sobrescreveriam a nuvem).
-- SQL, nesta ordem: `schema.sql`, `ponto.sql`, `sla.sql`, `endurecimento.sql`, `sincronizacao.sql`, `concorrencia.sql`.
+- SQL, nesta ordem: `schema.sql`, `ponto.sql`, `sla.sql`, `endurecimento.sql`, `sincronizacao.sql`, `concorrencia.sql`, `motorista-metas.sql`.
+- **Contas de motorista e colaborador:** o dono cria no próprio sistema (Ajustes → motorista; Ponto → Equipe → Editar), com senha gerada, sem e-mail de confirmação e sem abrir o Supabase. Quem faz é a função `supabase/functions/criar-acesso` (só o dono consegue chamá-la; a chave de administrador fica só no servidor do Supabase).
+- **Roteiro de testes:** `docs/ROTEIRO-DE-TESTES.md` (ponto e SLA do motorista).
 
 ## Publicar
 

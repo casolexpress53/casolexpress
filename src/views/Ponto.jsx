@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import { dataBR, hoje } from '../lib.js';
-import { CURTO, dataDe, fmtMin, folhaMes, hhmm, lerCoordenadas, mensagemErro, RAIO_PADRAO, resumoDia, ROTULO, TIPOS } from '../ponto-lib.js';
+import { useMemo, useRef, useState } from 'react';
+import { dataBR } from '../lib.js';
+import { CURTO, dataDe, fmtMin, hojeBR, folhaMes, hhmm, lerCoordenadas, mensagemErro, RAIO_PADRAO, resumoDia, ROTULO, TIPOS } from '../ponto-lib.js';
 import { posicao, usePontoDono } from '../ponto.js';
 import { temServidor } from '../auth.js';
 import { Chips, Icon, Modal, Vazio } from '../ui.jsx';
+import AcessoBox from '../components/AcessoBox.jsx';
 import PontoColab from './PontoColab.jsx';
 import PontoFolha, { NavMes } from './PontoFolha.jsx';
 
@@ -14,6 +15,8 @@ const horasParaMin = (t) => { const n = Number(String(t).replace(',', '.')); ret
 /* ---------- cadastro do colaborador e do local do ponto ---------- */
 function ColabForm({ aberto, colab, onFechar, P }) {
   const novo = !colab;
+  const vivo = (colab && P.colaboradores.find((c) => c.id === colab.id)) || colab;   // versão atual (reflete o acesso recém-criado)
+  const tocouAcesso = useRef(false);
   const ini = () => ({ nome: colab?.nome || '', funcao: colab?.funcao || '', endereco: colab?.endereco || '', lat: colab?.lat ?? '', lng: colab?.lng ?? '', raio: colab?.raio || RAIO_PADRAO, cargaH: colab?.cargaMin ? String(colab.cargaMin / 60).replace('.', ',') : '', ativo: colab?.ativo !== false, batePonto: colab?.batePonto !== false, email: '' });
   const [f, setF] = useState(ini);
   const [cola, setCola] = useState('');
@@ -38,8 +41,8 @@ function ColabForm({ aberto, colab, onFechar, P }) {
     if (f.batePonto && f.cargaH && horasParaMin(f.cargaH) == null) return setMsg({ ok: false, texto: 'Carga diária inválida. Ex.: 8 ou 6,5.' });
     setBusy(true);
     try {
-      const id = await P.salvarColab({ ...(colab ? { id: colab.id } : {}), nome: f.nome.trim(), funcao: f.funcao.trim(), endereco: f.endereco.trim(), lat, lng, raio, cargaMin: f.batePonto ? horasParaMin(f.cargaH) : colab?.cargaMin ?? null, ativo: f.ativo, batePonto: f.batePonto });
-      if (f.batePonto && f.email.trim() && temServidor) await P.vincular(id, f.email.trim());
+      // versão que foi LIDA ao abrir (detecta edição de outra pessoa); se o acesso foi criado aqui, a mudança foi nossa
+      const id = await P.salvarColab({ ...(colab ? { id: colab.id, versao: tocouAcesso.current ? vivo?.versao : colab.versao } : {}), nome: f.nome.trim(), funcao: f.funcao.trim(), endereco: f.endereco.trim(), lat, lng, raio, cargaMin: f.batePonto ? horasParaMin(f.cargaH) : colab?.cargaMin ?? null, ativo: f.ativo, batePonto: f.batePonto });
       onFechar();
     } catch (e) { setMsg({ ok: false, texto: mensagemErro(e) }); }
     setBusy(false);
@@ -68,10 +71,8 @@ function ColabForm({ aberto, colab, onFechar, P }) {
         </div>
         <div className="row"><input className="inp" style={{ flex: 1, minWidth: 200 }} aria-label="Colar coordenadas do Google Maps" placeholder="Ou cole do Google Maps: -25.4284, -49.2733" value={cola} onChange={(e) => setCola(e.target.value)} /><button type="button" className="btn sm" onClick={colar}>Aplicar</button></div>
         <p className="small muted">Raio de 100 m costuma funcionar em área aberta; dentro de galpão o GPS erra mais, então aumente se precisar. Sem coordenadas, o colaborador não consegue bater o ponto.</p>
-        {temServidor && !novo && (
-          <label className="f">E-mail de acesso do colaborador<input className="inp" type="email" value={f.email} placeholder={colab.vinculado ? 'Já tem acesso. Preencha só para trocar.' : 'Crie o usuário em Authentication > Users e informe o e-mail'} onChange={(e) => set('email', e.target.value)} /></label>
-        )}
-        {temServidor && novo && <p className="small muted">Depois de salvar, edite o colaborador para ligar o e-mail de acesso.</p>}
+        {temServidor && !novo && vivo && <AcessoBox tipo="colaborador" item={vivo} aoMudar={async () => { tocouAcesso.current = true; await P.recarregar(); }} />}
+        {temServidor && novo && <p className="small muted">Salve o colaborador e depois abra <b>Editar</b> para criar o acesso dele ao sistema.</p>}
         </>)}
         <label className="row"><input type="checkbox" checked={f.ativo} onChange={(e) => set('ativo', e.target.checked)} /> Ativo (pode bater ponto)</label>
         {msg && <p role="status" aria-live="polite" className={`small ${msg.ok === false ? 'l-err' : 'muted'}`}>{msg.texto}</p>}
@@ -108,7 +109,7 @@ function DiaForm({ aberto, dia, colab, onFechar, P }) {
 }
 
 export default function Ponto() {
-  const hojeI = hoje(), mesAtual = mesDe(hojeI);
+  const hojeI = hojeBR(), mesAtual = mesDe(hojeI);
   const [aba, setAba] = useState('hoje');
   const [mes, setMes] = useState(mesAtual);
   const [quem, setQuem] = useState('');

@@ -1,4 +1,4 @@
-import { iso, pad, parse } from './lib.js';
+import { pad, parse } from './lib.js';
 
 /* Regras e contas do controle de ponto (puras, sem tela e sem rede). */
 export const TIPOS = ['entrada', 'saida_intervalo', 'volta_intervalo', 'saida'];
@@ -15,8 +15,15 @@ export function distMetros(a, b) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-export const dataDe = (em) => iso(new Date(em));
-export const hhmm = (em) => { const d = new Date(em); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+/* Dia e hora SEMPRE no horário de Brasília (o ponto é da empresa, não do fuso do aparelho; o banco também usa o dia de Brasília). */
+const FUSO = 'America/Sao_Paulo';
+const fmtData = new Intl.DateTimeFormat('en-CA', { timeZone: FUSO, year: 'numeric', month: '2-digit', day: '2-digit' });   // AAAA-MM-DD
+const fmtHora = new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export const fmtHoraSeg = new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+export const dataDe = (em) => fmtData.format(new Date(em));
+export const hhmm = (em) => fmtHora.format(new Date(em));
+export const hojeBR = () => fmtData.format(new Date());
+export const emBR = (data, hora) => new Date(`${data}T${hora}:00-03:00`).toISOString();   // Brasil não tem horário de verão desde 2019
 export const fmtMin = (m) => `${Math.floor(Math.abs(m) / 60)}h${pad(Math.abs(m) % 60)}`;
 export const fmtSaldo = (m) => `${m < 0 ? '−' : '+'}${fmtMin(m)}`;
 
@@ -73,6 +80,12 @@ export function lerCoordenadas(txt) {
 }
 
 const MSG = {
+  email_ja_existe: 'Já existe uma conta com esse e-mail. Use outro e-mail.',
+  senha_curta: 'A senha precisa ter pelo menos 10 caracteres.',
+  email_invalido: 'E-mail inválido.',
+  sem_acesso: 'Este cadastro ainda não tem acesso. Crie o acesso primeiro.',
+  cadastro_nao_encontrado: 'Cadastro não encontrado. Atualize a tela.',
+  falha_criar: 'Não foi possível criar a conta. Tente de novo.',
   conflito_edicao: 'Outra pessoa alterou isto ao mesmo tempo. Nada foi sobrescrito. Feche, abra de novo para ver a versão mais recente e refaça a alteração.',
   pedido_nao_encontrado: 'Este pedido já foi decidido por outra pessoa.',
   sem_ponto: 'O seu cadastro não usa registro de ponto.',

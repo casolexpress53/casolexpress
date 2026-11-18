@@ -244,10 +244,25 @@ export async function carregarMotorista() {
   const m = data.motorista;
   return {
     motoristas: [{ id: m.id, nome: m.nome, tipo: m.tipo, valor: m.valor, ativo: m.ativo, sla: m.sla || {} }],
-    paradas: data.paradas.map((p) => ({ id: p.id, romaneioId: null, motoristaId: m.id, endereco: p.endereco, bairro: p.bairro || '', cidade: p.cidade || '', cliente: p.cliente || '', pacotes: p.pacotes || [], status: p.status, baixaEm: p.baixa_em, gps: null })),
+    paradas: data.paradas.map((p) => ({ id: p.id, romaneioId: p.romaneio_id || null, motoristaId: m.id, endereco: p.endereco, bairro: p.bairro || '', cidade: p.cidade || '', cliente: p.cliente || '', pacotes: p.pacotes || [], status: p.status, baixaEm: p.baixa_em, gps: null })),
+    romaneios: (data.romaneios || []).map((r) => ({ id: r.id, empresaId: r.empresa_id, data: r.data, arquivo: '', finalizado: false })),
+    empresas: (data.empresas || []).map((e) => ({ id: e.id, nome: '', tarifa: 0, prazoDias: e.prazo_dias })),   // só o prazo: nome e tarifa não vão ao motorista
     ajustes: { saldoInicial: 0, valorPadrao: 0, meta: 0, categorias: [], sla: data.sla_padrao || {} },
     motoristaId: m.id,
   };
+}
+
+/* Cria (ou redefine a senha de) o acesso de um motorista/colaborador. Só o dono consegue: a função do servidor confere. */
+export async function acesso(body) {
+  const c = await sb();
+  const { data, error } = await c.functions.invoke('criar-acesso', { body });
+  if (error) {
+    let det = null;
+    try { det = await error.context?.json(); } catch { /* sem corpo */ }
+    throw new Error(det?.erro || error.message);
+  }
+  if (data?.erro) throw new Error(data.erro);
+  return data;
 }
 
 export async function rpc(nome, args) {

@@ -30,6 +30,8 @@ Estado em 18/11/2026 (projeto `peyesvlhklyqngwzggem`, São Paulo): **banco aplic
 - **Dado pessoal (LGPD):** nome e endereço de destinatários, localização de colaboradores. Acesso mínimo, sem logs de localização contínua (o ponto lê a posição só na batida).
 - **Dados no navegador:** em modo servidor nada da operação vai para `localStorage` (a memória é limpa no logout). Dados de demonstração antigos que existirem no navegador não são usados nem enviados.
 - **Travas:** *Apagar tudo* e *Carregar dados fictícios* ficam bloqueados com dados reais.
+- **Criação de contas:** a função `criar-acesso` (Edge Function) só aceita chamadas de quem é dono (`eh_dono()`); cria o usuário já confirmado, define o papel e liga ao cadastro. Senha mínima de 10 caracteres exigida na função. A `service_role` fica só dentro do Supabase.
+- **Horário do ponto:** sempre no horário de Brasília (não depende do fuso do aparelho).
 - **Edição simultânea:** travada por versão em cada linha (`concorrencia.sql`): a segunda pessoa é barrada e avisada, nada é sobrescrito. Excluir uma linha não confere versão. Atualização por consulta a cada 30 s, não em tempo real.
 
 ## 4. Backup
