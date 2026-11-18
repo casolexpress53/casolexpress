@@ -1,0 +1,18 @@
+# Cabeçalhos de segurança (Cloudflare Pages / Workers Assets).
+# CSP: o app só carrega código do próprio domínio; conecta ao Supabase (REST e tempo real) e às fontes do Google.
+# 'wasm-unsafe-eval' é necessário para o decodificador meshopt do modelo 3D da pantera. 'blob:' em connect-src
+# é do carregamento das texturas embutidas no GLB. geolocation=(self) é exigido pelo registro de ponto.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/models/*
+  Cache-Control: public, max-age=604800
