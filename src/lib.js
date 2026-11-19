@@ -80,9 +80,10 @@ const anterior = (ini, fim) => { const n = diasEntre(ini, fim) + 1; return { ini
 export const PERIODOS = [
   ['hoje', 'Hoje'], ['7d', '7 dias'], ['quinzena', 'Quinzena'], ['passada', 'Quinzena passada'], ['mes', 'Este mês'], ['3m', '3 meses'],
 ];
-export function periodo(chave, ref = hoje()) {
+export function periodo(chave, ref = hoje(), de = '', ate = '') {
   let ini = ref, fim = ref, ant;
-  if (chave === '7d') ini = addDias(ref, -6);
+  if (chave === 'datas') { ini = de || ref.slice(0, 8) + '01'; fim = ate || ref; if (fim < ini) fim = ini; }
+  else if (chave === '7d') ini = addDias(ref, -6);
   else if (chave === 'quinzena') ({ ini, fim } = quinzena(ref));
   else if (chave === 'passada') ({ ini, fim } = quinzenaAnterior(quinzena(ref)));
   else if (chave === 'mes') { ini = ref.slice(0, 8) + '01'; ant = { ini: shiftMes(ini, -1), fim: shiftMes(ref, -1) }; }
@@ -139,7 +140,7 @@ export function custoMotoristas(S, ini, fim, porMotorista, soMotorista = '') {
   for (const m of S.motoristas) {
     if (soMotorista && m.id !== soMotorista) continue;
     const base = valorMotorista(S, m);
-    const v = m.tipo === 'fixo' ? Math.round((m.valor * dias) / 30) : Math.max((porMotorista[m.id]?.entregues || 0) * base - descontoAtraso(S, m, ini, fim, base).total, 0);
+    const v = m.tipo === 'fixo' ? Math.round((m.valor * (m.desligadoEm && m.desligadoEm < fim ? Math.max(0, Math.min(diasEntre(ini, m.desligadoEm) + 1, dias)) : dias)) / 30) : Math.max((porMotorista[m.id]?.entregues || 0) * base - descontoAtraso(S, m, ini, fim, base).total, 0);
     if (v > 0) { por[m.id] = v; total += v; }
   }
   return { por, total };
@@ -150,8 +151,11 @@ export function acertoQuinzena(S, m, q) {
   const dados = metricas(S, { ini: q.ini, fim: q.fim, motoristaId: m.id });
   const operou = S.romaneios.some((r) => r.data >= q.ini && r.data <= q.fim);
   const pacotes = dados.entregues;
-  const bruto = m.tipo === 'fixo' ? (operou ? Math.round(m.valor / 2) : 0) : pacotes * valorMotorista(S, m);
-  const reg = S.acertos.find((a) => a.motoristaId === m.id && a.ini === q.ini);
+  // fixo desligado: paga só os dias até a saída (proporcional, base de 30 dias); depois da saída não gera mais nada
+  let fixo = operou ? Math.round(m.valor / 2) : 0;
+  if (m.tipo === 'fixo' && m.desligadoEm) fixo = m.desligadoEm < q.ini ? 0 : Math.min(fixo, Math.round((m.valor * (diasEntre(q.ini, m.desligadoEm < q.fim ? m.desligadoEm : q.fim) + 1)) / 30));
+  const bruto = m.tipo === 'fixo' ? fixo : pacotes * valorMotorista(S, m);
+  const reg = q.livre ? undefined : S.acertos.find((a) => a.motoristaId === m.id && a.ini === q.ini);
   const descontos = reg?.descontos || [];
   // entregas fora do horário (regra de atraso cadastrada em Ajustes): cada pacote é pago com a redução da faixa
   const atraso = descontoAtraso(S, m, q.ini, q.fim, valorMotorista(S, m));

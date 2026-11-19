@@ -11,6 +11,7 @@ alter table public.colaboradores add column if not exists permissao text not nul
 alter table public.colaboradores drop constraint if exists colaboradores_permissao_check;
 alter table public.colaboradores add constraint colaboradores_permissao_check check (permissao in ('ponto','operador'));
 alter table public.colaboradores add column if not exists abas text[] not null default '{}';
+alter table public.colaboradores add column if not exists desligado_em date;
 
 create or replace function public.eh_operador() returns boolean
 language sql stable security definer set search_path = public as $$
@@ -31,19 +32,20 @@ create policy operador_le on public.ajustes for select to authenticated using ((
 -- Mantém o perfil (papel e abas do login) igual ao que o dono marcou no cadastro do funcionário.
 create or replace function public.sincroniza_perfil_colab() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare lista text[];
+declare lista text[]; op boolean;
 begin
   if new.user_id is null then return new; end if;
+  op := new.permissao = 'operador' and new.ativo;   -- desligado perde o acesso
   lista := array(select a from unnest(new.abas) a where a in ('romaneio','entregas','motorista','sla'));
   update public.perfis
-     set papel = case when new.permissao = 'operador' then 'operador' else 'colaborador' end,
-         abas  = case when new.permissao = 'operador' then lista else '{}' end
+     set papel = case when op then 'operador' else 'colaborador' end,
+         abas  = case when op then lista else '{}' end
    where id = new.user_id and papel in ('colaborador','operador');
   return new;
 end $$;
 revoke all on function public.sincroniza_perfil_colab() from public, anon, authenticated;
 drop trigger if exists sincroniza_perfil_colab on public.colaboradores;
-create trigger sincroniza_perfil_colab after insert or update of user_id, permissao, abas on public.colaboradores
+create trigger sincroniza_perfil_colab after insert or update of user_id, permissao, abas, ativo on public.colaboradores
   for each row execute function public.sincroniza_perfil_colab();
 
 -- Excluir um funcionário/motorista também remove o login dele (nunca o do dono): não sobra conta solta

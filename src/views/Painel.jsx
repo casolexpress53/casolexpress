@@ -2,18 +2,19 @@ import { useMemo, useState } from 'react';
 import { addDias, brl, comissoesAbertas, custoMotoristas, dataBR, fluxoPeriodo, hoje, metricas, num, PERIODOS, pct, periodo, rotuloMes, saldoHoje, saldoPrevisto } from '../lib.js';
 import { gerarPdf } from '../pdf.js';
 import { useStore } from '../store.js';
-import { Chips, Delta, Icon, Vazio } from '../ui.jsx';
+import { Delta, Icon, Vazio } from '../ui.jsx';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { H2 } from '../components/Recolher.jsx';
 
 export default function Painel({ ir }) {
   const S = useStore();
-  const [per, setPer] = useState(() => localStorage.getItem('casol_per') || 'mes');
+  const per = useFiltroPeriodo((() => { try { const v = localStorage.getItem('casol_per'); return v && v !== 'datas' && v !== 'tudo' ? v : 'mes'; } catch { return 'mes'; } })(), { tudo: false });
   const [emp, setEmp] = useState('');
   const [mot, setMot] = useState('');
-  const mudar = (v) => { setPer(v); try { localStorage.setItem('casol_per', v); } catch { /* ok */ } };
 
   const h = hoje();
-  const P = useMemo(() => periodo(per), [per]);
+  const P = useMemo(() => per.P, [per.P.ini, per.P.fim]); // eslint-disable-line react-hooks/exhaustive-deps
+  useMemo(() => { try { if (per.chave !== 'datas') localStorage.setItem('casol_per', per.chave); } catch { /* ok */ } }, [per.chave]);
   const f = { empresaId: emp, motoristaId: mot };
   const M = useMemo(() => metricas(S, { ...P, ...f }), [S, P, emp, mot]);
   const A = useMemo(() => metricas(S, { ...P.ant, ...f }), [S, P, emp, mot]);
@@ -62,7 +63,7 @@ export default function Painel({ ir }) {
     <div className="stack">
       <div className="card" style={{ '--i': 0 }}>
         <div className="stack">
-          <Chips opcoes={PERIODOS} valor={per} onChange={mudar} />
+          <FiltroPeriodo f={per} />
           <div className="form">
             <label className="f">Parceira<select className="sel" value={emp} onChange={(e) => setEmp(e.target.value)}><option value="">Todas as parceiras</option>{S.empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></label>
             <label className="f">Motorista<select className="sel" value={mot} onChange={(e) => setMot(e.target.value)}><option value="">Todos os motoristas</option>{S.motoristas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></label>

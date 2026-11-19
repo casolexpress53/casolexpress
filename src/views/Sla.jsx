@@ -5,6 +5,7 @@ import { descontoAtraso, regraAtraso } from '../atraso.js';
 import { avaliarSla, METRICAS_SLA, STATUS_SLA, temAlgumaMeta } from '../sla.js';
 import { useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { H2 } from '../components/Recolher.jsx';
 
 /* resultado de uma meta: valor real (colorido) e a meta ao lado */
@@ -22,7 +23,9 @@ function Reporte({ ir }) {
   const ultimo = useMemo(() => S.romaneios.map((r) => r.data).filter((d) => d <= hoje).sort().pop() || hoje, [S.romaneios, hoje]);
   const [modo, setModo] = useState('dia');
   const [dia, setDia] = useState('');
-  const P = modo === 'dia' ? { ini: dia || ultimo, fim: dia || ultimo } : periodo(modo);
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+  const P = modo === 'dia' ? { ini: dia || ultimo, fim: dia || ultimo } : modo === 'datas' ? { ini: de || ultimo, fim: ate || hoje } : periodo(modo);
   const { linhas, tot } = useMemo(() => reporteHxH(S, P.ini, P.fim, hoje), [S, P.ini, P.fim, hoje]);
   const semPrazo = !S.ajustes.prazosCidade || !Object.keys(S.ajustes.prazosCidade).length;
   return (
@@ -30,7 +33,8 @@ function Reporte({ ir }) {
       <H2 id="reporte-hxh">Reporte hora a hora</H2>
       <p className="sub">Igual à planilha de controle: pacotes <b>carregados</b> de cada motorista e quantos já foram <b>entregues</b>, <b>vencem hoje</b>, estão <b>no prazo</b> ou <b>fora do prazo</b>. Performance = entregues ÷ carregados.</p>
       <div className="row between" style={{ margin: '8px 0 12px', flexWrap: 'wrap', gap: 8 }}>
-        <Chips opcoes={[['dia', 'Um dia'], ['semana', 'Semana'], ['mes', 'Mês']]} valor={modo} onChange={setModo} />
+        <Chips opcoes={[['dia', 'Um dia'], ['semana', 'Semana'], ['mes', 'Mês'], ['datas', 'Escolher datas']]} valor={modo} onChange={setModo} />
+        {modo === 'datas' && <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}><label className="f">De<input className="inp" type="date" value={de || P.ini} max={ate || hoje} onChange={(e) => setDe(e.target.value)} /></label><label className="f">Até<input className="inp" type="date" value={ate || P.fim} min={de || undefined} max={hoje} onChange={(e) => setAte(e.target.value)} /></label></div>}
         {modo === 'dia' && <label className="row" style={{ gap: 8 }}><span className="small muted">Dia carregado</span><input className="inp" type="date" value={dia || ultimo} max={hoje} onChange={(e) => setDia(e.target.value)} /></label>}
       </div>
       {semPrazo && <p className="small muted">Prazo por cidade ainda não cadastrado: todas as cidades contam como D + 0 (vence no dia do carregamento). <button className="btn sm" onClick={() => ir?.('ajustes')}>Cadastrar prazos</button></p>}
@@ -72,8 +76,8 @@ function Reporte({ ir }) {
 /* Gestão: reporte igual ao controle da Casol e, abaixo, as metas acordadas (definidas em Ajustes). */
 export default function Sla({ ir }) {
   const S = useStore();
-  const [per, setPer] = useState('mes');
-  const P = periodo(per);
+  const per = useFiltroPeriodo('mes', { tudo: false });
+  const P = useMemo(() => per.P, [per.P.ini, per.P.fim]); // eslint-disable-line react-hooks/exhaustive-deps
   const linhas = useMemo(() => {
     const ordem = { abaixo: 0, ok: 1, sem_dados: 2, sem_meta: 3 };
     return S.motoristas.filter((m) => m.ativo !== false).map((m) => ({ m, r: avaliarSla(S, m, P.ini, P.fim) })).sort((a, b) => ordem[a.r.status] - ordem[b.r.status] || a.m.nome.localeCompare(b.m.nome));
@@ -89,7 +93,7 @@ export default function Sla({ ir }) {
         <div className="card"><H2>Metas por motorista</H2><p className="sub">Opcional: defina metas (taxa de entrega, ocorrências, prazo, pacotes por dia) e a regra de cada motorista em Ajustes.</p>
           <button className="btn" onClick={() => ir?.('ajustes')}><Icon n="sliders" size={18} /> Configurar metas</button></div>
       ) : (<>
-        <div className="row between"><Chips opcoes={PERIODOS.filter(([v]) => v !== '3m')} valor={per} onChange={setPer} /><button className="btn sm" onClick={() => ir?.('ajustes')}><Icon n="sliders" size={16} /> Editar metas</button></div>
+        <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}><FiltroPeriodo f={per} /><button className="btn sm" onClick={() => ir?.('ajustes')}><Icon n="sliders" size={16} /> Editar metas</button></div>
         <div className="grid g3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
           <div className="card"><div className="k-l">Cumprindo as metas</div><div className="k-v">{cont('ok')}</div></div>
           <div className="card"><div className="k-l">Abaixo da meta</div><div className="k-v" style={cont('abaixo') ? { color: 'var(--bad)' } : undefined}>{cont('abaixo')}</div></div>

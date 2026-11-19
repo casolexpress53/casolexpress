@@ -6,6 +6,8 @@ import { avaliarSla, STATUS_SLA } from '../sla.js';
 import { Chips, Icon, Modal, Vazio } from '../ui.jsx';
 import { Rec } from '../components/Recolher.jsx';
 import { CelulaSla } from './Sla.jsx';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
+import { horaBR, reporteHxH } from '../hxh.js';
 
 function posicao() {
   return new Promise((res) => {
@@ -15,6 +17,31 @@ function posicao() {
 }
 
 /* Visão do celular. Usada pelo motorista (modo "motorista") e pelo dono em "Ver como". */
+/* O mesmo reporte hora a hora que o gestor vê, só com os números do próprio motorista */
+function MeuReporte({ m, S }) {
+  const per = useFiltroPeriodo('hoje', { tudo: false });
+  const r = useMemo(() => reporteHxH(S, per.P.ini, per.P.fim).linhas.find((l) => l.motoristaId === m.id), [S, per.P.ini, per.P.fim, m.id]);
+  const pctTxt = (v) => `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%`;
+  const Cel = ({ rot, v, cor }) => <div className="card" style={{ padding: 14 }}><div className="k-l">{rot}</div><div className="k-v" style={{ fontSize: 28, ...(cor ? { color: cor } : {}) }}>{v}</div></div>;
+  return (
+    <div className="stack">
+      <p className="small muted">O seu desempenho de entrega, igual ao controle da empresa: carregados, entregues e o que vence ou já passou do prazo.</p>
+      <FiltroPeriodo f={per} />
+      {!r ? <p className="muted">Nenhum pacote carregado para você neste período.</p> : (<>
+        <div className="grid g2" style={{ gap: 10 }}>
+          <Cel rot="Performance" v={pctTxt(r.performance)} cor={r.performance >= 0.9 ? 'var(--ok)' : r.performance >= 0.7 ? undefined : 'var(--bad)'} />
+          <Cel rot="Carregados" v={num(r.carregados)} />
+          <Cel rot="✅ Entregue" v={num(r.ent)} />
+          <Cel rot="⚠️ Vence hoje" v={num(r.vence)} />
+          <Cel rot="🕒 No prazo" v={num(r.prazo)} />
+          <Cel rot="🚨 Fora do prazo" v={num(r.fora)} cor={r.fora ? 'var(--bad)' : undefined} />
+        </div>
+        <p className="small muted">{r.carga ? `Carregamento ${horaBR(r.carga)} (${r.turno}) · ` : ''}1ª entrega {r.primeira ? horaBR(r.primeira) : 'não iniciada'} · última {r.ultima ? horaBR(r.ultima) : 'não iniciada'}</p>
+      </>)}
+    </div>
+  );
+}
+
 export default function Motorista({ modo = 'dono', motoristaId }) {
   const S = useStore();
   const [ver, setVer] = useState(motoristaId || '');
@@ -55,7 +82,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
       )}
       <div className="phone">
         <div className="row between"><div><p className="k-l">Olá,</p><b style={{ font: 'italic 800 22px var(--f1)', textTransform: 'uppercase' }}>{m.nome}</b></div></div>
-        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['metas', 'Metas']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Metas']]} /></div>
+        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['metas', 'Meu SLA']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
 
         {aba === 'rota' ? (<>
           <p><b>{num(dados.entPac)}</b> de {num(dados.totalPac)} pacotes entregues</p>
@@ -93,6 +120,8 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
           <p className="small muted" style={{ marginTop: 18 }}>Ao dar baixa, a localização do celular é guardada junto como posição de apoio (se você permitir).</p>
         </>) : aba === 'metas' ? (
           <div className="stack">
+            <MeuReporte m={m} S={S} />
+            <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', marginTop: 8 }}>Metas do mês</h3>
             <p className="small muted">Suas metas neste mês (até hoje). Só contam pacotes com baixa.</p>
             {sla.regras.length === 0 ? <p className="muted">Nenhuma meta definida para você.</p> : sla.regras.map((r) => (
               <div className="card" key={r.k} style={{ padding: 16 }}>

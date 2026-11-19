@@ -244,10 +244,10 @@ export async function carregarMotorista() {
   const m = data.motorista;
   return {
     motoristas: [{ id: m.id, nome: m.nome, tipo: m.tipo, valor: m.valor, ativo: m.ativo, sla: m.sla || {} }],
-    paradas: data.paradas.map((p) => ({ id: p.id, romaneioId: p.romaneio_id || null, motoristaId: m.id, endereco: p.endereco, bairro: p.bairro || '', cidade: p.cidade || '', cliente: p.cliente || '', pacotes: p.pacotes || [], status: p.status, baixaEm: p.baixa_em, gps: null })),
+    paradas: data.paradas.map((p) => ({ id: p.id, romaneioId: p.romaneio_id || null, motoristaId: m.id, endereco: p.endereco, bairro: p.bairro || '', cidade: p.cidade || '', cliente: p.cliente || '', pacotes: p.pacotes || [], status: p.status, baixaEm: p.baixa_em, ...(p.carregado_em ? { carregadoEm: p.carregado_em } : {}), gps: null })),
     romaneios: (data.romaneios || []).map((r) => ({ id: r.id, empresaId: r.empresa_id, data: r.data, arquivo: '', finalizado: false })),
     empresas: (data.empresas || []).map((e) => ({ id: e.id, nome: '', tarifa: 0, prazoDias: e.prazo_dias })),   // só o prazo: nome e tarifa não vão ao motorista
-    ajustes: { saldoInicial: 0, valorPadrao: 0, meta: 0, categorias: [], sla: data.sla_padrao || {}, fechamento: data.fechamento || undefined },
+    ajustes: { saldoInicial: 0, valorPadrao: 0, meta: 0, categorias: [], sla: data.sla_padrao || {}, fechamento: data.fechamento || undefined, prazosCidade: data.prazos_cidade || undefined },
     motoristaId: m.id,
   };
 }

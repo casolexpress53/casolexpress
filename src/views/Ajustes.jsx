@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
 import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
-import { addDias, brl, dataBR, fechamentoAtual, norm, quinzena, hoje } from '../lib.js';
+import { acertoQuinzena, addDias, brl, dataBR, fechamentoAtual, norm, quinzena, quinzenaAnterior, hoje } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
-import { Icon, Money } from '../ui.jsx';
+import { Icon, Modal, Money } from '../ui.jsx';
 import { H2 } from '../components/Recolher.jsx';
 import { ABAS_EQUIPE } from '../equipe.js';
-import { mensagemErro } from '../ponto-lib.js';
+import { hojeBR, mensagemErro } from '../ponto-lib.js';
 import { usePontoDono } from '../ponto.js';
 
 /* grava só ao sair do campo (evita regravar a cada tecla) */
@@ -79,18 +79,19 @@ function PrazosCidade({ S }) {
 
 /* Funcionários cadastrados: só bater ponto ou operar o sistema (com as abas liberadas) */
 function PermissoesEquipe({ ir }) {
-  const P = usePontoDono();
+  const P = usePontoDono(`${hojeBR().slice(0, 8)}01`);
   const [msg, setMsg] = useState(null);
   async function salvar(c, patch) {
     setMsg(null);
     try { await P.salvarColab({ ...c, ...patch }); } catch (e) { setMsg(mensagemErro(e)); }
   }
   if (P.carregando) return <p className="small muted">Carregando…</p>;
+  if (P.erro) return <p className="l-err small" role="alert">Não consegui carregar os funcionários: {P.erro}</p>;
   if (!P.colaboradores.length) return <p className="small muted">Nenhum funcionário cadastrado ainda. Cadastre em <button className="btn sm" onClick={() => ir?.('equipe')}>Funcionários</button>.</p>;
   return (
     <div className="list">
       {msg && <p className="l-err small" role="alert">{msg}</p>}
-      {P.colaboradores.map((c) => {
+      {P.colaboradores.filter((c) => c.ativo).map((c) => {
         const op = c.permissao === 'operador', abas = c.abas || [];
         return (
           <div className="item" key={c.id} style={{ alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
@@ -138,6 +139,47 @@ function Fechamento({ S }) {
   );
 }
 
+/* Desligar motorista: encerra o acesso, passa as paradas pendentes para outro e mostra o acerto final. */
+function DesligarMotorista({ m, S, onFechar, ir }) {
+  const [data, setData] = useState(hoje());
+  const [para, setPara] = useState('');
+  const [feito, setFeito] = useState(false);
+  const pend = S.paradas.filter((p) => p.motoristaId === m.id && p.status === 'pendente');
+  const nPac = pend.reduce((t, p) => t + p.pacotes.length, 0);
+  const q = quinzena(data), qa = quinzenaAnterior(q);
+  const ac = [qa, q].map((x) => ({ x, a: acertoQuinzena(S, { ...m, desligadoEm: data, ativo: false }, x) })).filter(({ a }) => a.bruto > 0 || a.reg);
+  const outros = S.motoristas.filter((x) => x.id !== m.id && x.ativo !== false);
+  function confirmar() {
+    for (const p of pend) act.upd('paradas', p.id, { motoristaId: para || null });
+    act.upd('motoristas', m.id, { ativo: false, desligadoEm: data });
+    setFeito(true);
+  }
+  return (
+    <Modal aberto fechar={onFechar} titulo={feito ? `${m.nome} desligado` : `Desligar ${m.nome}`}>
+      <div className="stack">
+        {feito ? <p className="small"><b>Desligamento registrado em {dataBR(data)}.</b> O acesso do motorista foi encerrado. O histórico de entregas e os acertos continuam guardados. Faça o acerto final em Comissão.</p> : (<>
+          <p className="small muted">O motorista perde o acesso ao sistema; entregas e comissões já feitas ficam guardadas. {m.tipo === 'fixo' ? 'O salário fixo é pago só até o último dia (proporcional).' : 'Os pacotes entregues até aqui continuam valendo no acerto.'}</p>
+          <label className="f" style={{ maxWidth: 240 }}>Último dia de trabalho<input className="inp" type="date" value={data} max={hoje()} onChange={(e) => setData(e.target.value)} /></label>
+          {nPac > 0 && (
+            <label className="f">Ele tem {nPac} pacote(s) pendente(s) em {pend.length} parada(s). Passar para
+              <select className="sel" value={para} onChange={(e) => setPara(e.target.value)}><option value="">Deixar sem motorista</option>{outros.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+          )}
+        </>)}
+        <div className="list small">
+          <div className="item"><b>Acerto final (estimativa)</b></div>
+          {ac.length === 0 ? <div className="item muted">Sem valores a acertar nestes períodos.</div> : ac.map(({ x, a }) => (
+            <div className="item" key={x.ini}><span>{dataBR(x.ini)} a {dataBR(x.fim)} · {m.tipo === 'fixo' ? 'salário proporcional' : `${a.pacotes} pacote(s)`}{a.totalDesc ? ` · descontos ${brl(a.totalDesc)}` : ''}</span><b>{brl(a.liquido)} {a.aprovado ? '(já aprovado)' : ''}</b></div>
+          ))}
+        </div>
+        <div className="row between">
+          <button className="btn" onClick={onFechar}>{feito ? 'Fechar' : 'Cancelar'}</button>
+          {feito ? <button className="btn ac" onClick={() => { onFechar(); ir?.('comissao'); }}>Ir para a Comissão</button> : <button className="btn ac danger" onClick={confirmar}>Confirmar desligamento</button>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* campo de meta: vazio = sem meta */
 const Meta = ({ m, valor, onChange }) => (
   <input className="inp" type="number" min="0" max={m.un === '%' ? 100 : undefined} step="0.1" inputMode="decimal" placeholder="sem meta" value={valor ?? ''} aria-label={m.rotulo}
@@ -149,6 +191,7 @@ export default function Ajustes({ ir }) {
   const [m, setM] = useState({ nome: '', tipo: 'pacote', valor: 0 });
   const [e, setE] = useState({ nome: '', tarifa: 0, prazoDias: 1 });
   const [cat, setCat] = useState('');
+  const [deslM, setDeslM] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
   const backup = () => {
@@ -159,6 +202,7 @@ export default function Ajustes({ ir }) {
 
   return (
     <div className="stack">
+      {deslM && <DesligarMotorista m={deslM} S={S} ir={ir} onFechar={() => setDeslM(null)} />}
       <div className="card">
         <H2>Motoristas</H2>
         <p className="sub">Quanto cada um recebe. Fixos têm salário mensal (a quinzena paga metade). Os demais recebem por pacote entregue; deixe em branco para usar o valor padrão.</p>
@@ -168,6 +212,8 @@ export default function Ajustes({ ir }) {
               <label className="f" style={{ flex: '2 1 200px' }}>Nome<Texto valor={x.nome} onSave={(v) => act.upd('motoristas', x.id, { nome: v })} /></label>
               <label className="f" style={{ flex: '1 1 130px' }}>Tipo<select className="sel" value={x.tipo} onChange={(ev) => act.upd('motoristas', x.id, { tipo: ev.target.value })}><option value="pacote">Por pacote</option><option value="fixo">Fixo (mensal)</option></select></label>
               <label className="f" style={{ flex: '1 1 130px' }}>{x.tipo === 'fixo' ? 'Salário mensal' : 'Por pacote'}<Money valor={x.valor} onChange={(v) => act.upd('motoristas', x.id, { valor: v })} /></label>
+              {x.ativo === false && <span className="tag">{x.desligadoEm ? `Desligado em ${dataBR(x.desligadoEm)}` : 'Inativo'}</span>}
+              {x.ativo === false ? <button className="btn sm" onClick={() => act.upd('motoristas', x.id, { ativo: true, desligadoEm: null })}>Reativar</button> : <button className="btn sm" onClick={() => setDeslM(x)}>Desligar</button>}
               {temServidor && <AcessoBox tipo="motorista" item={x} aoMudar={recarregar} />}
               <button className="btn sm danger" onClick={() => window.confirm(`Remover ${x.nome}? As paradas dele ficam sem motorista.`) && (act.del('motoristas', x.id), S.paradas.filter((p) => p.motoristaId === x.id).forEach((p) => act.upd('paradas', p.id, { motoristaId: null })))} aria-label={`Remover ${x.nome}`}><Icon n="x" size={14} /></button>
             </div>

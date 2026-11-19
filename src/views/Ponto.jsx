@@ -43,7 +43,7 @@ function ColabForm({ aberto, colab, onFechar, P }) {
     setBusy(true);
     try {
       // versão que foi LIDA ao abrir (detecta edição de outra pessoa); se o acesso foi criado aqui, a mudança foi nossa
-      const id = await P.salvarColab({ ...(colab ? { id: colab.id, versao: tocouAcesso.current ? vivo?.versao : colab.versao } : {}), nome: f.nome.trim(), funcao: f.funcao.trim(), endereco: f.endereco.trim(), lat, lng, raio, cargaMin: f.batePonto ? horasParaMin(f.cargaH) : colab?.cargaMin ?? null, ativo: f.ativo, batePonto: f.batePonto });
+      const id = await P.salvarColab({ ...(colab ? { id: colab.id, versao: tocouAcesso.current ? vivo?.versao : colab.versao } : {}), nome: f.nome.trim(), funcao: f.funcao.trim(), endereco: f.endereco.trim(), lat, lng, raio, cargaMin: f.batePonto ? horasParaMin(f.cargaH) : colab?.cargaMin ?? null, ativo: f.ativo, batePonto: f.batePonto, permissao: vivo?.permissao, abas: vivo?.abas, desligadoEm: f.ativo ? null : vivo?.desligadoEm ?? null });
       onFechar();
     } catch (e) { setMsg({ ok: false, texto: mensagemErro(e) }); }
     setBusy(false);
@@ -78,6 +78,41 @@ function ColabForm({ aberto, colab, onFechar, P }) {
         <label className="row"><input type="checkbox" checked={f.ativo} onChange={(e) => set('ativo', e.target.checked)} /> Ativo (pode bater ponto)</label>
         {msg && <p role="status" aria-live="polite" className={`small ${msg.ok === false ? 'l-err' : 'muted'}`}>{msg.texto}</p>}
         <div className="row between"><button className="btn" onClick={onFechar}>Cancelar</button><button className="btn ac" disabled={busy} onClick={salvar}>Salvar</button></div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- desligamento: encerra o acesso, mantém o histórico e gera o acerto (folha) até a data de saída ---------- */
+function DesligarForm({ aberto, colab, onFechar, P, mes, setMes }) {
+  const [data, setData] = useState(() => hojeBR());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [feito, setFeito] = useState(false);
+  const vivo = P.colaboradores.find((c) => c.id === colab.id) || colab;
+  const folha = useMemo(() => folhaMes(P.batidas.filter((b) => b.colaboradorId === colab.id), mes, vivo.cargaMin, data), [P.batidas, mes, vivo.cargaMin, data, colab.id]);
+  const mudaData = (v) => { setData(v); if (v) setMes(mesDe(v)); };
+  async function desligar() {
+    setBusy(true); setMsg(null);
+    try { await P.salvarColab({ ...vivo, ativo: false, desligadoEm: data }); setFeito(true); }
+    catch (e) { setMsg({ ok: false, texto: mensagemErro(e) }); }
+    setBusy(false);
+  }
+  return (
+    <Modal aberto={aberto} fechar={onFechar} titulo={feito ? `${colab.nome} desligado` : `Desligar ${colab.nome}`}>
+      <div className="stack">
+        {feito ? (
+          <p className="small"><b>Desligamento registrado em {dataBR(data)}.</b> O acesso ao sistema foi encerrado e ele não bate mais ponto. O histórico e a folha ficam guardados. Baixe o acerto abaixo e, se precisar, reative em “Reativar”.</p>
+        ) : (<>
+          <p className="small muted">Ao desligar, a pessoa perde o acesso ao sistema e não bate mais ponto. Nada é apagado: batidas e folhas continuam guardadas. Confira abaixo a folha até a data de saída (acerto de horas) e baixe o PDF.</p>
+          <label className="f" style={{ maxWidth: 240 }}>Último dia de trabalho<input className="inp" type="date" value={data} max={hojeBR()} onChange={(e) => mudaData(e.target.value)} /></label>
+        </>)}
+        {P.carregando ? <div className="empty">Carregando…</div> : (<>
+          {folha.pendencias > 0 && !feito && <p className="small l-err" role="alert">Há {folha.pendencias} dia(s) com batida faltando neste mês. Corrija na folha (Ponto → Folha) antes de fechar o acerto, para as horas ficarem certas.</p>}
+          <PontoFolha nome={colab.nome} funcao={colab.funcao} mes={mes} folha={folha} cargaMin={vivo.cargaMin} />
+        </>)}
+        {msg && <p role="alert" className="small l-err">{msg.texto}</p>}
+        <div className="row between"><button className="btn" onClick={onFechar}>{feito ? 'Fechar' : 'Cancelar'}</button>{!feito && <button className="btn ac danger" disabled={busy || !data} onClick={desligar}>Confirmar desligamento</button>}</div>
       </div>
     </Modal>
   );
@@ -118,6 +153,7 @@ export default function Ponto({ so }) {
   const [edit, setEdit] = useState(null);       // { colab | null } no cadastro
   const [dia, setDia] = useState(null);
   const [ver, setVer] = useState('');
+  const [desl, setDesl] = useState(null);      // funcionário em desligamento
   const [erro, setErro] = useState('');
   const P = usePontoDono(mes);
 
@@ -207,12 +243,13 @@ export default function Ponto({ so }) {
             <div className="list">
               {P.colaboradores.map((c) => (
                 <div className="item" key={c.id}>
-                  <div><b>{c.nome}</b>{c.funcao && <span className="muted"> · {c.funcao}</span>}{!c.ativo && <span className="tag" style={{ marginLeft: 8 }}>Inativo</span>}{c.batePonto === false && <span className="tag" style={{ marginLeft: 8 }}>Não bate ponto</span>}
+                  <div><b>{c.nome}</b>{c.funcao && <span className="muted"> · {c.funcao}</span>}{!c.ativo && <span className="tag" style={{ marginLeft: 8 }}>{c.desligadoEm ? `Desligado em ${dataBR(c.desligadoEm)}` : 'Inativo'}</span>}{c.batePonto === false && <span className="tag" style={{ marginLeft: 8 }}>Não bate ponto</span>}
                     <div className="small muted">{c.batePonto === false ? 'Sem registro de ponto' : c.temLocal ? `${c.endereco || 'Local definido'} · raio ${c.raio || RAIO_PADRAO} m` : <span style={{ color: 'var(--bad)' }}>Sem local: não consegue bater ponto</span>}{temServidor && c.batePonto !== false && ` · ${c.vinculado ? 'com acesso' : 'sem acesso ao app'}`}</div></div>
                   <div className="row">
                     {!temServidor && c.batePonto !== false && <button className="btn sm" onClick={() => setVer(c.id)}>Ver como funcionário</button>}
                     <button className="btn sm" onClick={() => setEdit({ colab: c })}>Editar</button>
-                    <button className="btn sm danger" aria-label={`Remover ${c.nome}`} onClick={() => window.confirm(`Remover ${c.nome}? As batidas dele também serão apagadas. Para só impedir novas batidas, desmarque “Ativo”.`) && agir(() => P.removerColab(c.id))}><Icon n="x" size={14} /></button>
+                    {c.ativo ? <button className="btn sm" onClick={() => { setMes(mesAtual); setDesl(c); }}>Desligar</button> : <button className="btn sm" onClick={() => agir(() => P.salvarColab({ ...c, ativo: true, desligadoEm: null }))}>Reativar</button>}
+                    <button className="btn sm danger" aria-label={`Remover ${c.nome}`} onClick={() => window.confirm(`Remover ${c.nome} de vez? As batidas e a folha dele também serão APAGADAS. Se ele foi mandado embora, use “Desligar”: o histórico fica guardado.`) && agir(() => P.removerColab(c.id))}><Icon n="x" size={14} /></button>
                   </div>
                 </div>
               ))}
@@ -220,6 +257,7 @@ export default function Ponto({ so }) {
           )}
         </div>
       )}
+      {desl && <DesligarForm key={desl.id} aberto colab={desl} onFechar={() => setDesl(null)} P={P} mes={mes} setMes={setMes} />}
       {edit && <ColabForm key={edit.colab?.id || 'novo'} aberto colab={edit.colab} onFechar={() => setEdit(null)} P={P} />}
     </div>
   );

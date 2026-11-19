@@ -119,7 +119,7 @@ export default function Romaneio() {
             <div className="item" key={c}>
               <span><b>{c}</b> <span className="muted">· {n} parada(s)</span></span>
               <select className="sel" style={{ width: 190 }} defaultValue="" onChange={(e) => e.target.value && act.distribuir(c, e.target.value)} aria-label={`Motorista para ${c}`}>
-                <option value="">Escolher motorista…</option>{S.motoristas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                <option value="">Escolher motorista…</option>{S.motoristas.filter((m) => m.ativo !== false).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
             </div>
           ))}

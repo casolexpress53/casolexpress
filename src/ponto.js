@@ -23,11 +23,11 @@ export function posicao() {
 }
 
 const doServidor = {
-  colab: (r) => ({ id: r.id, nome: r.nome, funcao: r.funcao || '', ativo: r.ativo, endereco: r.endereco || '', lat: r.lat, lng: r.lng, raio: r.raio_m, cargaMin: r.carga_min, vinculado: !!r.user_id, temLocal: r.lat != null && r.lng != null, batePonto: r.bate_ponto !== false, permissao: r.permissao || 'ponto', abas: r.abas || [], versao: r.versao }),
+  colab: (r) => ({ id: r.id, nome: r.nome, funcao: r.funcao || '', ativo: r.ativo, endereco: r.endereco || '', lat: r.lat, lng: r.lng, raio: r.raio_m, cargaMin: r.carga_min, vinculado: !!r.user_id, temLocal: r.lat != null && r.lng != null, batePonto: r.bate_ponto !== false, permissao: r.permissao || 'ponto', abas: r.abas || [], desligadoEm: r.desligado_em || null, versao: r.versao }),
   batida: (r) => ({ id: r.id, colaboradorId: r.colaborador_id, em: r.em, tipo: r.tipo, origem: r.origem, dist: r.dist_m }),
   pedido: (r) => ({ id: r.id, colaboradorId: r.colaborador_id, data: r.dia, tipo: r.tipo, hora: String(r.hora).slice(0, 5), motivo: r.motivo, status: r.status, resposta: r.resposta, criadoEm: r.criado_em }),
 };
-const paraServidor = (c) => ({ nome: c.nome, funcao: c.funcao || null, ativo: c.ativo !== false, endereco: c.endereco || null, lat: c.lat ?? null, lng: c.lng ?? null, raio_m: c.raio || RAIO_PADRAO, carga_min: c.cargaMin || null, bate_ponto: c.batePonto !== false, permissao: c.permissao === 'operador' ? 'operador' : 'ponto', abas: c.permissao === 'operador' ? (c.abas || []) : [] });
+const paraServidor = (c) => ({ nome: c.nome, funcao: c.funcao || null, ativo: c.ativo !== false, endereco: c.endereco || null, lat: c.lat ?? null, lng: c.lng ?? null, raio_m: c.raio || RAIO_PADRAO, carga_min: c.cargaMin || null, bate_ponto: c.batePonto !== false, permissao: c.permissao === 'operador' ? 'operador' : 'ponto', abas: c.permissao === 'operador' ? (c.abas || []) : [], desligado_em: c.desligadoEm || null });
 const rpc = async (nome, args) => { const { data, error } = await (await sb()).rpc(nome, args); if (error) throw new Error(error.message); return data; };
 
 /* ============================ DONO ============================ */
