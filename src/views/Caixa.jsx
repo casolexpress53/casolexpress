@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { addDias, brl, CAT_COMISSAO, CATEGORIAS_BASE, comissoesAbertas, custoMotoristas, dataBR, fluxoPeriodo, hoje, metricas, pct, periodo, rotuloMes, saldoHoje, saldoPrevisto, shiftMes } from '../lib.js';
 import { act, useStore } from '../store.js';
 import { Chips, Icon, Money, Vazio } from '../ui.jsx';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { H2 } from '../components/Recolher.jsx';
 
 function Novo({ cats }) {
@@ -45,16 +46,18 @@ export default function Caixa({ ir }) {
   const h = hoje();
   const cats = useMemo(() => [...new Set([...CATEGORIAS_BASE, ...S.ajustes.categorias])], [S.ajustes.categorias]);
   const [lim, setLim] = useState(40);
+  const per = useFiltroPeriodo('mes');
 
   const saldo = saldoHoje(S);
   const abertas = useMemo(() => comissoesAbertas(S), [S]);
   const totalAb = abertas.reduce((t, a) => t + a.liquido, 0);
-  const P = periodo('mes');
-  const M = useMemo(() => metricas(S, P), [S]);
+  const P = per.ativo && per.ini && per.fim ? { ini: per.ini, fim: per.fim } : periodo('mes');
+  const M = useMemo(() => metricas(S, P), [S, P.ini, P.fim]); // eslint-disable-line react-hooks/exhaustive-deps
   const custo = custoMotoristas(S, P.ini, P.fim, M.porMotorista);
   const fluxo = fluxoPeriodo(S, P.ini, P.fim);
   const fica = M.receita - custo.total - fluxo.despesas;
-  const lanc = useMemo(() => [...S.lancamentos].sort((a, b) => b.data.localeCompare(a.data)), [S.lancamentos]);
+  const lanc = useMemo(() => S.lancamentos.filter((l) => per.dentro(l.data)).sort((a, b) => b.data.localeCompare(a.data)), [S.lancamentos, per.ini, per.fim]); // eslint-disable-line react-hooks/exhaustive-deps
+  const somaLanc = useMemo(() => lanc.reduce((t, l) => ({ ent: t.ent + (l.tipo === 'entrada' ? l.valor : 0), sai: t.sai + (l.tipo === 'saida' ? l.valor : 0) }), { ent: 0, sai: 0 }), [lanc]);
 
   return (
     <div className="stack">
@@ -77,11 +80,11 @@ export default function Caixa({ ir }) {
 
       <div className="grid g2">
         <div className="card">
-          <H2>Quanto a empresa ganha em {rotuloMes(h)}</H2>
+          <H2>Quanto a empresa ganha ({dataBR(P.ini)} a {dataBR(P.fim)})</H2>
           {M.receita > 0 ? (
             <div className="list"><div className="item"><span>As parceiras pagam</span><b>{brl(M.receita)}</b></div><div className="item"><span>Motoristas (comissões e fixos)</span><b>− {brl(custo.total)}</b></div><div className="item"><span>Despesas pagas</span><b>− {brl(fluxo.despesas)}</b></div><div className="item"><span>Fica para a empresa</span><b className={fica < 0 ? 'down' : 'up'}>{brl(fica)} · {pct(fica / M.receita)}</b></div></div>
           ) : <p className="muted small">Informe quanto cada parceira paga por pacote em Ajustes para ver esta conta.</p>}
-          <p className="small muted" style={{ marginTop: 10 }}>Esta conta usa as entregas do mês e o valor combinado com cada parceira. Ela é separada do saldo em conta, que só mostra o dinheiro que realmente entrou e saiu.</p>
+          <p className="small muted" style={{ marginTop: 10 }}>Esta conta usa as entregas do período escolhido (sem filtro, o mês atual) e o valor combinado com cada parceira. Ela é separada do saldo em conta, que só mostra o dinheiro que realmente entrou e saiu.</p>
         </div>
         <div className="card">
           <H2>Comissões a pagar</H2>
@@ -95,7 +98,9 @@ export default function Caixa({ ir }) {
 
       <div className="card">
         <H2>Lançamentos</H2>
-        {!lanc.length ? <Vazio titulo="Caixa vazio" texto="Lance a primeira entrada ou saída acima." /> : (
+        <div style={{ margin: '8px 0 12px' }}><FiltroPeriodo f={per} onMudar={() => setLim(40)} /></div>
+        {lanc.length > 0 && <p className="small muted">No período: entradas <b>{brl(somaLanc.ent)}</b> · saídas <b>{brl(somaLanc.sai)}</b></p>}
+        {!lanc.length ? <Vazio titulo={per.ativo ? "Sem lançamentos no período" : "Caixa vazio"} texto={per.ativo ? "Troque o filtro de período acima para ver outros lançamentos." : "Lance a primeira entrada ou saída acima."} /> : (
           <div className="list">
             {lanc.slice(0, lim).map((l) => (
               <div className="item" key={l.id}>

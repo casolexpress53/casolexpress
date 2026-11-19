@@ -47,17 +47,38 @@ Deno.serve(async (req) => {
 
     const mail = String(email ?? '').trim().toLowerCase();
     if (!EMAIL.test(mail)) return resp({ erro: 'email_invalido' }, 400);
+    let uid: string;
+    let reaproveitada = false;
     const { data: novo, error } = await admin.auth.admin.createUser({ email: mail, password: senha, email_confirm: true });
     if (error || !novo?.user) {
       const jaExiste = /already|registered|exists/i.test(error?.message ?? '');
-      return resp({ erro: jaExiste ? 'email_ja_existe' : 'falha_criar', detalhe: error?.message }, jaExiste ? 409 : 400);
+      if (!jaExiste) return resp({ erro: 'falha_criar', detalhe: error?.message }, 400);
+      // A conta pode ter sobrado de um cadastro que foi excluído: se não é do dono e não está em uso, reaproveita.
+      let existente: { id: string; email?: string } | undefined;
+      for (let pg = 1; pg <= 25 && !existente; pg++) {
+        const { data: lote } = await admin.auth.admin.listUsers({ page: pg, perPage: 200 });
+        const lista = lote?.users ?? [];
+        existente = lista.find((u) => u.email?.toLowerCase() === mail);
+        if (lista.length < 200) break;
+      }
+      if (!existente) return resp({ erro: 'email_ja_existe' }, 409);
+      const { data: perf } = await admin.from('perfis').select('papel').eq('id', existente.id).maybeSingle();
+      const [{ data: c1 }, { data: c2 }] = await Promise.all([
+        admin.from('colaboradores').select('id').eq('user_id', existente.id).neq('id', id).limit(1),
+        admin.from('motoristas').select('id').eq('user_id', existente.id).neq('id', id).limit(1),
+      ]);
+      if (perf?.papel === 'dono' || c1?.length || c2?.length) return resp({ erro: 'email_ja_existe' }, 409);
+      const { error: eSenha } = await admin.auth.admin.updateUserById(existente.id, { password: senha, email_confirm: true });
+      if (eSenha) return resp({ erro: 'falha_senha', detalhe: eSenha.message }, 400);
+      uid = existente.id; reaproveitada = true;
+    } else {
+      uid = novo.user.id;
     }
-    const uid = novo.user.id;
     // o gatilho do banco cria o perfil como 'motorista'; aqui acerta o papel e liga o login ao cadastro
     await admin.from('perfis').upsert({ id: uid, papel: tipo, nome: mail.split('@')[0] });
     const { error: eLink } = await admin.from(tabela).update({ user_id: uid }).eq('id', id);
     if (eLink) {
-      await admin.auth.admin.deleteUser(uid);   // não deixa conta solta
+      if (!reaproveitada) await admin.auth.admin.deleteUser(uid);   // não deixa conta solta nova
       return resp({ erro: 'falha_vinculo', detalhe: eLink.message }, 400);
     }
     return resp({ ok: true, user_id: uid });

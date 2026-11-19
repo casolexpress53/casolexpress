@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { dataBR, hoje, num } from '../lib.js';
 import { analisar } from '../romaneio-lib.js';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { linhasExemplo } from '../seed.js';
 import { act, getState, useStore } from '../store.js';
 import { Icon, Vazio } from '../ui.jsx';
@@ -21,6 +22,7 @@ export default function Romaneio() {
   const [erro, setErro] = useState('');
   const [arrastando, setArrastando] = useState(false);
   const [novaEmp, setNovaEmp] = useState('');
+  const per = useFiltroPeriodo('tudo');
   const inp = useRef(null);
   const emp = empresaId || S.empresas[0]?.id || '';
 
@@ -47,7 +49,7 @@ export default function Romaneio() {
     for (const p of S.paradas) if (!p.motoristaId && p.status === 'pendente') m[p.cidade || 'Sem cidade'] = (m[p.cidade || 'Sem cidade'] || 0) + 1;
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [S.paradas]);
-  const romaneios = useMemo(() => [...S.romaneios].sort((a, b) => b.data.localeCompare(a.data)), [S.romaneios]);
+  const romaneios = useMemo(() => S.romaneios.filter((r) => per.dentro(r.data)).sort((a, b) => b.data.localeCompare(a.data)), [S.romaneios, per.ini, per.fim]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="stack">
@@ -126,7 +128,8 @@ export default function Romaneio() {
 
       <div className="card">
         <H2>Romaneios importados</H2>
-        {!romaneios.length ? <Vazio titulo="Nenhum romaneio" texto="Importe a primeira lista para começar." /> : (
+        <div style={{ margin: '8px 0 12px' }}><FiltroPeriodo f={per} /></div>
+        {!romaneios.length ? <Vazio titulo="Nenhum romaneio" texto={per.ativo ? "Nenhum romaneio neste período. Troque o filtro acima." : "Importe a primeira lista para começar."} /> : (
           <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Data</th><th>Empresa</th><th className="r">Paradas</th><th className="r">Pacotes</th><th>Situação</th><th /></tr></thead><tbody>
             {romaneios.slice(0, 60).map((r) => {
               const ps = S.paradas.filter((p) => p.romaneioId === r.id);

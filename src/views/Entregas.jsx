@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { dataBR, diaLocal, horaLocal, STATUS } from '../lib.js';
 import { act, useStore } from '../store.js';
 import { Chips, Modal, Vazio } from '../ui.jsx';
+import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { H2 } from '../components/Recolher.jsx';
 
 const tom = (s) => (s === 'entregue' ? 'ok' : s === 'pendente' ? '' : 'bad');
@@ -13,8 +14,10 @@ export default function Entregas() {
   const [mot, setMot] = useState('');
   const [lim, setLim] = useState(60);
   const [sel, setSel] = useState(null);
+  const per = useFiltroPeriodo('tudo');
 
-  const base = useMemo(() => S.paradas.filter((p) => (!rom || p.romaneioId === rom) && (!mot || (mot === '_' ? !p.motoristaId : p.motoristaId === mot))), [S.paradas, rom, mot]);
+  const dataRom = useMemo(() => new Map(S.romaneios.map((r) => [r.id, r.data])), [S.romaneios]);
+  const base = useMemo(() => S.paradas.filter((p) => (!rom || p.romaneioId === rom) && (!mot || (mot === '_' ? !p.motoristaId : p.motoristaId === mot)) && per.dentro(dataRom.get(p.romaneioId))), [S.paradas, rom, mot, per.ini, per.fim, dataRom]); // eslint-disable-line react-hooks/exhaustive-deps
   const cont = useMemo(() => { const c = { todas: base.length }; for (const k of Object.keys(STATUS)) c[k] = 0; for (const p of base) c[p.status]++; return c; }, [base]);
   const lista = useMemo(() => (st === 'todas' ? base : base.filter((p) => p.status === st)), [base, st]);
   const romsOrd = useMemo(() => [...S.romaneios].sort((a, b) => b.data.localeCompare(a.data)), [S.romaneios]);
@@ -28,6 +31,7 @@ export default function Entregas() {
     <div className="stack">
       <div className="card">
         <div className="stack">
+          <FiltroPeriodo f={per} onMudar={() => setLim(60)} />
           <Chips valor={st} onChange={(v) => { setSt(v); setLim(60); }} opcoes={[['todas', 'Todas', cont.todas], ...Object.entries(STATUS).map(([k, r]) => [k, r, cont[k]])]} />
           <div className="form">
             <label className="f">Romaneio<select className="sel" value={rom} onChange={(e) => setRom(e.target.value)}><option value="">Todos os romaneios</option>{romsOrd.map((r) => <option key={r.id} value={r.id}>{dataBR(r.data)} · {S.empresas.find((e) => e.id === r.empresaId)?.nome}{r.finalizado ? ' · finalizado' : ''}</option>)}</select></label>

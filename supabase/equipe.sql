@@ -45,3 +45,20 @@ revoke all on function public.sincroniza_perfil_colab() from public, anon, authe
 drop trigger if exists sincroniza_perfil_colab on public.colaboradores;
 create trigger sincroniza_perfil_colab after insert or update of user_id, permissao, abas on public.colaboradores
   for each row execute function public.sincroniza_perfil_colab();
+
+-- Excluir um funcionário/motorista também remove o login dele (nunca o do dono): não sobra conta solta
+-- que impediria cadastrar de novo o mesmo e-mail.
+create or replace function public.remove_login_orfao() returns trigger
+language plpgsql security definer set search_path = public, auth as $$
+begin
+  if old.user_id is not null
+     and exists (select 1 from public.perfis where id = old.user_id and papel in ('colaborador','operador','motorista')) then
+    delete from auth.users where id = old.user_id;
+  end if;
+  return old;
+end $$;
+revoke all on function public.remove_login_orfao() from public, anon, authenticated;
+drop trigger if exists remove_login_orfao on public.colaboradores;
+create trigger remove_login_orfao after delete on public.colaboradores for each row execute function public.remove_login_orfao();
+drop trigger if exists remove_login_orfao on public.motoristas;
+create trigger remove_login_orfao after delete on public.motoristas for each row execute function public.remove_login_orfao();
