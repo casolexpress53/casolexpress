@@ -3,7 +3,7 @@ import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
 import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
 import { acertoQuinzena, addDias, brl, dataBR, fechamentoAtual, norm, quinzena, quinzenaAnterior, hoje } from '../lib.js';
-import { act, getState, recarregar, useStore } from '../store.js';
+import { act, getState, recarregar, souDono, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
 import { Icon, Modal, Money } from '../ui.jsx';
 import { H2 } from '../components/Recolher.jsx';
@@ -214,7 +214,7 @@ export default function Ajustes({ ir }) {
               <label className="f" style={{ flex: '1 1 130px' }}>{x.tipo === 'fixo' ? 'Salário mensal' : 'Por pacote'}<Money valor={x.valor} onChange={(v) => act.upd('motoristas', x.id, { valor: v })} /></label>
               {x.ativo === false && <span className="tag">{x.desligadoEm ? `Desligado em ${dataBR(x.desligadoEm)}` : 'Inativo'}</span>}
               {x.ativo === false ? <button className="btn sm" onClick={() => act.upd('motoristas', x.id, { ativo: true, desligadoEm: null })}>Reativar</button> : <button className="btn sm" onClick={() => setDeslM(x)}>Desligar</button>}
-              {temServidor && <AcessoBox tipo="motorista" item={x} aoMudar={recarregar} />}
+              {temServidor && souDono() && <AcessoBox tipo="motorista" item={x} aoMudar={recarregar} />}
               <button className="btn sm danger" onClick={() => window.confirm(`Remover ${x.nome}? As paradas dele ficam sem motorista.`) && (act.del('motoristas', x.id), S.paradas.filter((p) => p.motoristaId === x.id).forEach((p) => act.upd('paradas', p.id, { motoristaId: null })))} aria-label={`Remover ${x.nome}`}><Icon n="x" size={14} /></button>
             </div>
           ))}
@@ -282,11 +282,11 @@ export default function Ajustes({ ir }) {
         )}
       </div>
 
-      <div className="card">
+      {souDono() && <div className="card">
         <H2 id="equipe-permissoes">Equipe: o que cada funcionário pode fazer</H2>
-        <p className="sub">Quem foi cadastrado em Funcionários aparece aqui. Escolha se a pessoa <b>só bate o ponto</b> ou <b>trabalha no sistema</b>, e quais abas ela enxerga. Caixa, comissão, ajustes e painel financeiro ficam sempre só com você. A pessoa precisa ter login (criado em Funcionários) e, ao mudar a permissão, entrar de novo para valer.</p>
+        <p className="sub">Quem foi cadastrado em Funcionários aparece aqui. Escolha se a pessoa <b>só bate o ponto</b> ou <b>trabalha no sistema</b>, e quais abas ela enxerga. Marque as abas que a pessoa vai usar: o sistema libera só o que está marcado, também no banco de dados. O cadastro de funcionários, os acessos e as permissões ficam sempre só com você. A pessoa precisa ter login (criado em Funcionários) e, ao mudar a permissão, entrar de novo para valer.</p>
         <PermissoesEquipe ir={ir} />
-      </div>
+      </div>}
 
       <div className="card">
         <H2 id="prazo-cidade">Prazo de entrega por cidade</H2>

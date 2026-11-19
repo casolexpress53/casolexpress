@@ -5,6 +5,7 @@ import { useStore } from '../store.js';
 import { Delta, Icon, Vazio } from '../ui.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { H2 } from '../components/Recolher.jsx';
+import { useNotasNovas } from '../notas.js';
 
 export default function Painel({ ir }) {
   const S = useStore();
@@ -13,6 +14,7 @@ export default function Painel({ ir }) {
   const [mot, setMot] = useState('');
 
   const h = hoje();
+  const nf = useNotasNovas();
   const P = useMemo(() => per.P, [per.P.ini, per.P.fim]); // eslint-disable-line react-hooks/exhaustive-deps
   useMemo(() => { try { if (per.chave !== 'datas') localStorage.setItem('casol_per', per.chave); } catch { /* ok */ } }, [per.chave]);
   const f = { empresaId: emp, motoristaId: mot };
@@ -61,6 +63,19 @@ export default function Painel({ ir }) {
 
   return (
     <div className="stack">
+      {nf.n > 0 && (
+        <div className="card" style={{ borderColor: 'var(--ac)' }} role="status">
+          <div className="row between" style={{ flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div className="k-l">Notas fiscais</div>
+              <b style={{ font: 'italic 800 22px var(--f1)' }}>{nf.n} nota{nf.n > 1 ? 's' : ''} nova{nf.n > 1 ? 's' : ''} dos motoristas</b>
+              <div className="small muted">{nf.ultimas.slice(0, 3).map((n) => n.motorista).filter((x, i, a) => a.indexOf(x) === i).join(', ')}{nf.n > 3 ? ' e outros' : ''}</div>
+            </div>
+            <button className="btn ac" onClick={() => ir('notas')}><Icon n="file" size={18} /> Ver e baixar</button>
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ '--i': 0 }}>
         <div className="stack">
           <FiltroPeriodo f={per} />

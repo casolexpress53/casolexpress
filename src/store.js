@@ -32,6 +32,8 @@ let modo = null;   // 'dono' | 'operador' | 'motorista' | 'colaborador' (só no 
 const subs = new Set();
 
 export const getState = () => state;
+/* só o dono (ou a demonstração) mexe em acessos e permissões da equipe */
+export const souDono = () => !temServidor || modo === 'dono';
 export function setState(fn) {
   const prev = state;
   state = fn(state);

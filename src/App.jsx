@@ -16,6 +16,7 @@ const Caixa = lazy(() => import('./views/Caixa.jsx'));
 const Rastreador = lazy(() => import('./views/Rastreador.jsx'));
 const Ajustes = lazy(() => import('./views/Ajustes.jsx'));
 const Sla = lazy(() => import('./views/Sla.jsx'));
+const Notas = lazy(() => import('./views/Notas.jsx'));
 const Funcionarios = lazy(() => import('./views/Funcionarios.jsx'));
 const Ponto = lazy(() => import('./views/Ponto.jsx'));
 const PontoColab = lazy(() => import('./views/PontoColab.jsx'));
@@ -26,6 +27,7 @@ const NAV = [
   ['entregas', 'Entregas', 'Todas as paradas e o que já foi baixado', 'box', Entregas],
   ['motorista', 'Motorista', 'Como o motorista vê e dá baixa no celular', 'truck', Motorista],
   ['sla', 'SLA', 'Metas acordadas dos motoristas e como cada um está', 'target', Sla],
+  ['notas', 'Notas fiscais', 'Notas enviadas pelos motoristas: abrir e baixar', 'file', Notas],
   ['comissao', 'Comissão', 'Acerto quinzenal com descontos', 'percent', Comissao],
   ['caixa', 'Caixa', 'Entradas, saídas e previsão', 'wallet', Caixa],
   ['equipe', 'Funcionários', 'Cadastre quem opera e bate ponto: nome, função, local do ponto e acesso ao sistema', 'users', Funcionarios],

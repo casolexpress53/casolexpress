@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { acertoQuinzena, brl, dataBR, diaLocal, hoje, num, OCORRENCIAS, quinzena, quinzenaAnterior, STATUS } from '../lib.js';
+import { useMemo, useRef, useState } from 'react';
+import { acertoQuinzena, brl, dataBR, diaLocal, horaLocal, hoje, num, OCORRENCIAS, quinzena, quinzenaAnterior, STATUS } from '../lib.js';
 import { act, useStore } from '../store.js';
 import { temServidor } from '../auth.js';
 import { avaliarSla, STATUS_SLA } from '../sla.js';
@@ -8,6 +8,7 @@ import { Rec } from '../components/Recolher.jsx';
 import { CelulaSla } from './Sla.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { horaBR, reporteHxH } from '../hxh.js';
+import { apagarNota, enviarNota, fmtTamanho, useNotas } from '../notas.js';
 
 function posicao() {
   return new Promise((res) => {
@@ -17,6 +18,51 @@ function posicao() {
 }
 
 /* Visão do celular. Usada pelo motorista (modo "motorista") e pelo dono em "Ver como". */
+/* Motorista envia a nota fiscal (foto, PDF ou XML) para o escritório e acompanha se foi vista */
+function MinhasNotas({ m }) {
+  const { notas, carregando, erro, recarregar } = useNotas();
+  const [f, setF] = useState({ numero: '', obs: '' });
+  const [arq, setArq] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const inp = useRef(null);
+  const quando = (iso) => `${dataBR(diaLocal(iso))} ${horaLocal(iso)}`;
+  async function enviar(e) {
+    e.preventDefault(); setBusy(true); setMsg(null);
+    try {
+      await enviarNota({ motoristaId: m.id, motoristaNome: m.nome, arquivo: arq, numero: f.numero, obs: f.obs });
+      setF({ numero: '', obs: '' }); setArq(null); if (inp.current) inp.current.value = '';
+      setMsg({ ok: true, t: 'Nota enviada para o escritório.' }); recarregar();
+    } catch (er) { setMsg({ ok: false, t: er.message }); }
+    setBusy(false);
+  }
+  async function apagar(n) { if (!window.confirm('Apagar esta nota enviada?')) return; try { await apagarNota(n); recarregar(); } catch (er) { setMsg({ ok: false, t: er.message }); } }
+  return (
+    <div className="stack">
+      <p className="small muted">Envie a nota fiscal da entrega ou do abastecimento para o escritório. Aceita foto, PDF ou XML (até 10 MB).</p>
+      <form className="stack" onSubmit={enviar}>
+        <label className="f">Arquivo da nota<input ref={inp} className="inp" type="file" accept="application/pdf,image/*,.xml,text/xml" onChange={(e) => setArq(e.target.files?.[0] || null)} /></label>
+        <label className="f">Número da nota (opcional)<input className="inp" inputMode="numeric" maxLength={30} value={f.numero} onChange={(e) => setF({ ...f, numero: e.target.value })} /></label>
+        <label className="f">Observação (opcional)<input className="inp" maxLength={200} value={f.obs} onChange={(e) => setF({ ...f, obs: e.target.value })} placeholder="Ex.: nota do cliente da Rua X" /></label>
+        <button className="btn ac" disabled={busy || !arq}>{busy ? 'Enviando…' : 'Enviar nota'}</button>
+        {msg && <p role="status" aria-live="polite" className={`small ${msg.ok ? 'muted' : 'l-err'}`}>{msg.t}</p>}
+      </form>
+      <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', marginTop: 8 }}>Minhas notas enviadas</h3>
+      {erro && <p className="l-err small">{erro}</p>}
+      {carregando ? <div className="empty">Carregando…</div> : !notas.length ? <p className="muted">Você ainda não enviou nenhuma nota.</p> : (
+        <div className="list">
+          {notas.slice(0, 30).map((n) => (
+            <div className="item" key={n.id} style={{ alignItems: 'start' }}>
+              <div style={{ minWidth: 0 }}><b>{n.numero ? `NF ${n.numero}` : n.nome}</b><div className="small muted">{quando(n.em)} · {fmtTamanho(n.tamanho)}</div></div>
+              <div className="row" style={{ gap: 6 }}><span className={`tag ${n.vistoEm ? 'ok' : 'warn'}`}>{n.vistoEm ? 'Vista pelo escritório' : 'Enviada'}</span>{!n.vistoEm && <button className="btn sm danger" aria-label="Apagar nota" onClick={() => apagar(n)}><Icon n="x" size={14} /></button>}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* O mesmo reporte hora a hora que o gestor vê, só com os números do próprio motorista */
 function MeuReporte({ m, S }) {
   const per = useFiltroPeriodo('hoje', { tudo: false });
@@ -82,7 +128,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
       )}
       <div className="phone">
         <div className="row between"><div><p className="k-l">Olá,</p><b style={{ font: 'italic 800 22px var(--f1)', textTransform: 'uppercase' }}>{m.nome}</b></div></div>
-        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['metas', 'Meu SLA']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
+        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
 
         {aba === 'rota' ? (<>
           <p><b>{num(dados.entPac)}</b> de {num(dados.totalPac)} pacotes entregues</p>
@@ -118,7 +164,9 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
             </Rec>
           )}
           <p className="small muted" style={{ marginTop: 18 }}>Ao dar baixa, a localização do celular é guardada junto como posição de apoio (se você permitir).</p>
-        </>) : aba === 'metas' ? (
+        </>) : aba === 'notas' ? (
+          <MinhasNotas m={m} />
+        ) : aba === 'metas' ? (
           <div className="stack">
             <MeuReporte m={m} S={S} />
             <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', marginTop: 8 }}>Metas do mês</h3>

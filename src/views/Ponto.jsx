@@ -3,6 +3,7 @@ import { dataBR } from '../lib.js';
 import { CURTO, dataDe, fmtMin, hojeBR, folhaMes, hhmm, lerCoordenadas, mensagemErro, RAIO_PADRAO, resumoDia, ROTULO, TIPOS } from '../ponto-lib.js';
 import { posicao, usePontoDono } from '../ponto.js';
 import { temServidor } from '../auth.js';
+import { souDono } from '../store.js';
 import { Chips, Icon, Modal, Vazio } from '../ui.jsx';
 import AcessoBox from '../components/AcessoBox.jsx';
 import PontoColab from './PontoColab.jsx';
@@ -187,7 +188,7 @@ export default function Ponto({ so }) {
   return (
     <div className="stack">
       <div className="row between">
-        {so ? <span /> : <Chips valor={aba} onChange={setAba} opcoes={[['hoje', 'Hoje'], ['folha', 'Folha do mês'], ['pedidos', 'Pedidos de ajuste', pend.length || undefined], ['equipe', 'Funcionários e locais', P.colaboradores.length]]} />}
+        {so ? <span /> : <Chips valor={aba} onChange={setAba} opcoes={[['hoje', 'Hoje'], ['folha', 'Folha do mês'], ['pedidos', 'Pedidos de ajuste', pend.length || undefined], ...(souDono() ? [['equipe', 'Funcionários e locais', P.colaboradores.length]] : [])]} />}
         {temServidor && <button className="btn sm" onClick={P.recarregar}>Atualizar</button>}
       </div>
       {(erro || P.erro) && <p className="l-err" role="alert">{erro || P.erro}</p>}
