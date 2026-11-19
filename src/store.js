@@ -134,18 +134,18 @@ export const act = {
     setState((s) => ({ ...s, acertos: s.acertos.map((a) => (a.id === id ? { ...a, descontos: [...a.descontos, { id: uid(), desc, valor }] } : a)) }));
   },
   descontoDel: (acertoId, dId) => setState((s) => ({ ...s, acertos: s.acertos.map((a) => (a.id === acertoId ? { ...a, descontos: a.descontos.filter((d) => d.id !== dId) } : a)) })),
-  aprovar: (motoristaId, q, liquido, nome, hojeISO) => {
+  aprovar: (motoristaId, q, liquido, nome, hojeISO, snap = null) => {
     const id = act.acertoGarantir(motoristaId, q);
     const lancId = act.add('lancamentos', {
       data: hojeISO, tipo: 'saida', categoria: 'Comissão de motorista', pago: true, venc: hojeISO, origem: 'comissao',
       descricao: `Acerto ${nome} · ${q.ini.slice(8)}/${q.ini.slice(5, 7)} a ${q.fim.slice(8)}/${q.fim.slice(5, 7)}`, valor: liquido,
     });
-    act.upd('acertos', id, { aprovadoEm: new Date().toISOString(), lancId });
+    act.upd('acertos', id, { aprovadoEm: new Date().toISOString(), lancId, snap });   // snap: valores no momento do pagamento (não mudam se a regra mudar depois)
   },
   desaprovar: (acertoId) => {
     const a = getState().acertos.find((x) => x.id === acertoId);
     if (a?.lancId) act.del('lancamentos', a.lancId);
-    act.upd('acertos', acertoId, { aprovadoEm: null, lancId: null });
+    act.upd('acertos', acertoId, { aprovadoEm: null, lancId: null, snap: null });
   },
 };
 

@@ -160,7 +160,11 @@ export function acertoQuinzena(S, m, q) {
   // entregas fora do horário (regra de atraso cadastrada em Ajustes): cada pacote é pago com a redução da faixa
   const atraso = descontoAtraso(S, m, q.ini, q.fim, valorMotorista(S, m));
   const totalDesc = descontos.reduce((s, d) => s + d.valor, 0) + atraso.total;
-  return { motorista: m, pacotes, bruto, descontos, descAtraso: atraso.total, atrasoLinhas: atraso.linhas, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
+  const base = { motorista: m, pacotes, bruto, descontos, descAtraso: atraso.total, atrasoLinhas: atraso.linhas, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
+  // acerto já pago: vale o que foi pago na época (não muda se a regra, o valor por pacote ou o período mudarem depois)
+  if (reg?.aprovadoEm && reg.snap) return { ...base, ...reg.snap, congelado: true };
+  if (reg?.aprovadoEm && reg.liquidoPago != null) return { ...base, liquido: reg.liquidoPago, parcial: true, congelado: true };   // pago antes de guardarmos o detalhe: só o valor líquido
+  return base;
 }
 
 /* Quinzenas com operação (a partir dos romaneios). */

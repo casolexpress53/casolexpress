@@ -28,6 +28,8 @@ begin
     'prazos_cidade', (select extra->'prazosCidade' from public.ajustes where id = 1),
     'paradas', coalesce((select jsonb_agg(jsonb_build_object('id',ps.id,'romaneio_id',ps.romaneio_id,'endereco',ps.endereco,
                 'bairro',ps.bairro,'cidade',ps.cidade,'cliente',ps.cliente,'pacotes',ps.pacotes,'status',ps.status,'baixa_em',ps.baixa_em,'carregado_em',ps.extra->>'carregadoEm') order by ps.seq) from ps), '[]'::jsonb),
+    'acertos', coalesce((select jsonb_agg(jsonb_build_object('id',a.id,'ini',a.ini,'fim',a.fim,'descontos',a.descontos,'aprovado_em',a.aprovado_em,'lancamento_id',a.lancamento_id,'extra',a.extra,
+                'valor_pago',(select l.valor from public.lancamentos l where l.id = a.lancamento_id)) order by a.ini desc) from public.acertos a where a.motorista_id = mid), '[]'::jsonb),
     'romaneios', coalesce((select jsonb_agg(jsonb_build_object('id',rs.id,'data',rs.data,'empresa_id',rs.empresa_id)) from rs), '[]'::jsonb),
     'empresas', coalesce((select jsonb_agg(jsonb_build_object('id',es.id,'prazo_dias',es.prazo_dias)) from es), '[]'::jsonb)
   ) into res;

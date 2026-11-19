@@ -8,6 +8,7 @@ import { Rec } from '../components/Recolher.jsx';
 import { CelulaSla } from './Sla.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { horaBR, reporteHxH } from '../hxh.js';
+import { gerarPdf } from '../pdf.js';
 import { apagarNota, enviarNota, fmtTamanho, useNotas } from '../notas.js';
 
 function posicao() {
@@ -59,6 +60,55 @@ function MinhasNotas({ m }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* Extrato do motorista: quinzena atual e anterior (estimativa) e tudo que já foi pago, com PDF */
+function Extrato({ m, S, q }) {
+  const [busy, setBusy] = useState('');
+  const [erro, setErro] = useState('');
+  const atuais = [q, quinzenaAnterior(q)].map((x) => ({ x, a: acertoQuinzena(S, m, x) }));
+  const pagos = S.acertos.filter((r) => r.motoristaId === m.id && r.aprovadoEm).sort((a, b) => b.ini.localeCompare(a.ini)).map((r) => { const x = { ini: r.ini, fim: r.fim }; return { x, a: acertoQuinzena(S, m, x) }; });
+  const totalPago = pagos.reduce((t, { a }) => t + a.liquido, 0);
+  const colunas = ['Período', 'Pacotes', 'Bruto', 'Descontos', 'Líquido', 'Pago em'];
+  const linha = ({ x, a }) => [`${dataBR(x.ini)} a ${dataBR(x.fim)}`, m.tipo === 'fixo' ? 'Fixo' : a.parcial ? '—' : num(a.pacotes), a.parcial ? '—' : brl(a.bruto), brl(a.totalDesc || 0), brl(a.liquido), a.reg?.aprovadoEm ? dataBR(diaLocal(a.reg.aprovadoEm)) : 'Em aberto'];
+  async function pdf(lista, titulo, arquivo, sub) {
+    setBusy(arquivo); setErro('');
+    try { await gerarPdf({ titulo, subtitulo: `${m.nome}${sub ? ` · ${sub}` : ''}`, colunas, linhas: lista.map(linha), resumo: [['Total pago', brl(lista.reduce((t, { a }) => t + a.liquido, 0))]], arquivo, nota: 'Valores conforme o acerto aprovado pela Casol Express.' }); }
+    catch { setErro('Não consegui gerar o PDF agora. Tente de novo.'); }
+    setBusy('');
+  }
+  return (
+    <div className="stack">
+      {atuais.map(({ x, a }, i) => (
+        <div className="card" key={x.ini} style={{ padding: 16 }}>
+          <p className="k-l">{i === 0 ? 'Quinzena atual' : 'Quinzena anterior'} · {dataBR(x.ini)} a {dataBR(x.fim)}</p>
+          <div className="k-v" style={{ fontSize: 30 }}>{brl(a.liquido)}</div>
+          <p className="small muted">{m.tipo === 'fixo' ? 'Salário fixo (metade na quinzena)' : a.parcial ? 'Valor pago' : `${num(a.pacotes)} pacote(s) entregue(s)`}{a.totalDesc ? ` · descontos ${brl(a.totalDesc)}` : ''}{!a.aprovado ? ' · estimativa' : ''}</p>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <span className={`tag ${a.aprovado ? 'ok' : 'warn'}`}>{a.aprovado ? 'Acerto aprovado' : 'Em aberto'}</span>
+            <button className="btn sm" disabled={!!busy} onClick={() => pdf([{ x, a }], 'Extrato da quinzena', `extrato-${x.ini}.pdf`, '')}>{busy === `extrato-${x.ini}.pdf` ? 'Gerando…' : 'Baixar PDF'}</button>
+          </div>
+        </div>
+      ))}
+      <div className="card" style={{ padding: 16 }}>
+        <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <div><p className="k-l">Tudo que foi pago</p><div className="k-v" style={{ fontSize: 28 }}>{brl(totalPago)}</div><p className="small muted">{pagos.length} acerto(s) aprovado(s)</p></div>
+          {pagos.length > 0 && <button className="btn ac" disabled={!!busy} onClick={() => pdf(pagos, 'Extrato de pagamentos', 'extrato-pagamentos.pdf', 'todos os pagamentos')}>{busy === 'extrato-pagamentos.pdf' ? 'Gerando…' : 'Baixar PDF de tudo'}</button>}
+        </div>
+        {erro && <p className="l-err small" role="alert">{erro}</p>}
+        {pagos.length === 0 ? <p className="muted small" style={{ marginTop: 8 }}>Ainda não há acertos pagos.</p> : (
+          <div className="list" style={{ marginTop: 10 }}>
+            {pagos.map(({ x, a }) => (
+              <div className="item" key={x.ini}>
+                <span><b>{dataBR(x.ini)} a {dataBR(x.fim)}</b><br /><span className="muted small">Pago em {dataBR(diaLocal(a.reg.aprovadoEm))}{a.totalDesc ? ` · descontos ${brl(a.totalDesc)}` : ''}</span></span>
+                <span className="row" style={{ gap: 8 }}><b>{brl(a.liquido)}</b><button className="btn sm" disabled={!!busy} onClick={() => pdf([{ x, a }], 'Comprovante de pagamento', `pagamento-${x.ini}.pdf`, `${dataBR(x.ini)} a ${dataBR(x.fim)}`)}>PDF</button></span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -118,7 +168,6 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
   if (!m) return <div className="card"><Vazio titulo="Motorista não encontrado" texto="Peça ao administrador para conferir o seu cadastro." /></div>;
 
   const q = quinzena(h);
-  const extratos = [q, quinzenaAnterior(q)].map((x) => acertoQuinzena(S, m, x));
   const sla = avaliarSla(S, m, h.slice(0, 8) + '01', h);
 
   return (
@@ -128,7 +177,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
       )}
       <div className="phone">
         <div className="row between"><div><p className="k-l">Olá,</p><b style={{ font: 'italic 800 22px var(--f1)', textTransform: 'uppercase' }}>{m.nome}</b></div></div>
-        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
+        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
 
         {aba === 'rota' ? (<>
           <p><b>{num(dados.entPac)}</b> de {num(dados.totalPac)} pacotes entregues</p>
@@ -180,16 +229,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
             {sla.regras.length > 0 && <span className={`tag ${STATUS_SLA[sla.status][0]}`}>{STATUS_SLA[sla.status][1]}</span>}
           </div>
         ) : (
-          <div className="stack">
-            {extratos.map((e, i) => (
-              <div className="card" key={e.motorista.id + i} style={{ padding: 16 }}>
-                <p className="k-l">{i === 0 ? 'Quinzena atual' : 'Quinzena anterior'} · {dataBR((i ? quinzenaAnterior(q) : q).ini)} a {dataBR((i ? quinzenaAnterior(q) : q).fim)}</p>
-                <div className="k-v" style={{ fontSize: 30 }}>{brl(e.liquido)}</div>
-                <p className="small muted">{m.tipo === 'fixo' ? 'Salário fixo (metade na quinzena)' : `${num(e.pacotes)} pacote(s) entregue(s)`}{e.totalDesc ? ` · descontos ${brl(e.totalDesc)}` : ''}</p>
-                <span className={`tag ${e.aprovado ? 'ok' : 'warn'}`}>{e.aprovado ? 'Acerto aprovado' : 'Em aberto'}</span>
-              </div>
-            ))}
-          </div>
+          <Extrato m={m} S={S} q={q} />
         )}
       </div>
 

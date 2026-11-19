@@ -110,7 +110,7 @@ export default function Comissao() {
                         ? <div className="row" style={{ marginTop: 12 }}><button className="btn sm" onClick={() => act.desaprovar(a.reg.id)}>Desfazer aprovação</button></div>
                         : (<>
                           <Desconto onAdd={(d, v) => act.descontoAdd(m.id, q, d, v)} />
-                          <div className="row" style={{ marginTop: 12 }}><button className="btn ac" disabled={a.liquido <= 0} onClick={() => act.aprovar(m.id, q, a.liquido, m.nome, h)}><Icon n="check" size={18} /> Aprovar e lançar no caixa</button></div>
+                          <div className="row" style={{ marginTop: 12 }}><button className="btn ac" disabled={a.liquido <= 0} onClick={() => act.aprovar(m.id, q, a.liquido, m.nome, h, { pacotes: a.pacotes, bruto: a.bruto, descAtraso: a.descAtraso, totalDesc: a.totalDesc, liquido: a.liquido })}><Icon n="check" size={18} /> Aprovar e lançar no caixa</button></div>
                         </>)}
                     </div>
                   )}

@@ -246,6 +246,7 @@ export async function carregarMotorista() {
     motoristas: [{ id: m.id, nome: m.nome, tipo: m.tipo, valor: m.valor, ativo: m.ativo, sla: m.sla || {} }],
     paradas: data.paradas.map((p) => ({ id: p.id, romaneioId: p.romaneio_id || null, motoristaId: m.id, endereco: p.endereco, bairro: p.bairro || '', cidade: p.cidade || '', cliente: p.cliente || '', pacotes: p.pacotes || [], status: p.status, baixaEm: p.baixa_em, ...(p.carregado_em ? { carregadoEm: p.carregado_em } : {}), gps: null })),
     romaneios: (data.romaneios || []).map((r) => ({ id: r.id, empresaId: r.empresa_id, data: r.data, arquivo: '', finalizado: false })),
+    acertos: (data.acertos || []).map((a) => ({ ...(a.extra || {}), id: a.id, motoristaId: m.id, ini: a.ini, fim: a.fim, descontos: a.descontos || [], aprovadoEm: a.aprovado_em, lancId: a.lancamento_id, liquidoPago: a.valor_pago ?? null })),
     empresas: (data.empresas || []).map((e) => ({ id: e.id, nome: '', tarifa: 0, prazoDias: e.prazo_dias })),   // só o prazo: nome e tarifa não vão ao motorista
     ajustes: { saldoInicial: 0, valorPadrao: 0, meta: 0, categorias: [], sla: data.sla_padrao || {}, fechamento: data.fechamento || undefined, prazosCidade: data.prazos_cidade || undefined },
     motoristaId: m.id,
