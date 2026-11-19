@@ -157,10 +157,20 @@ function DiaForm({ aberto, dia, colab, onFechar, P }) {
   return (
     <Modal aberto={aberto} fechar={() => { setV({}); onFechar(); }} titulo={`${colab.nome} · ${dataBR(dia.data)}`}>
       <div className="stack">
-        <p className="small muted">Deixe em branco para remover a batida. O horário fica marcado como “ajustado pelo gestor”.</p>
-        <div className="form">{TIPOS.map((t) => <label className="f" key={t}>{ROTULO[t]}<input className="inp" type="time" value={valor(t)} onChange={(e) => setV({ ...v, [t]: e.target.value })} /></label>)}</div>
+        <p className="small muted">Mude o horário ou toque em <b>Remover</b> para apagar a batida. O horário fica marcado como “ajustado pelo gestor”. Nada some até você tocar em Salvar.</p>
+        <div className="stack" style={{ gap: 10 }}>{TIPOS.map((t) => {
+          const some = atual(t) !== '' && valor(t) === '';
+          return (
+            <div className="row" key={t} style={{ gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
+              <label className="f" style={{ flex: '1 1 160px' }}>{ROTULO[t]}<input className="inp" type="time" value={valor(t)} onChange={(e) => setV({ ...v, [t]: e.target.value })} /></label>
+              {some ? <span className="tag bad" style={{ alignSelf: 'center' }}>Será removida</span> : null}
+              <button type="button" className="btn sm danger" disabled={valor(t) === ''} onClick={() => setV({ ...v, [t]: '' })} aria-label={`Remover ${ROTULO[t]}`}>Remover</button>
+            </div>
+          );
+        })}</div>
+        {TIPOS.some((t) => valor(t) !== '') && <div><button type="button" className="btn sm danger" onClick={() => setV(Object.fromEntries(TIPOS.map((t) => [t, ''])))}>Remover todas as batidas do dia</button></div>}
         {erro && <p className="l-err" role="alert">{erro}</p>}
-        <div className="row between"><button className="btn" onClick={() => { setV({}); onFechar(); }}>Cancelar</button><button className="btn ac" disabled={busy} onClick={salvar}>Salvar</button></div>
+        <div className="row between"><button className="btn" onClick={() => { setV({}); onFechar(); }}>Cancelar</button><button className="btn ac" disabled={busy || TIPOS.every((t) => valor(t) === atual(t))} onClick={salvar}>{busy ? 'Salvando…' : 'Salvar'}</button></div>
       </div>
     </Modal>
   );
