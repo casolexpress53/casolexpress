@@ -64,6 +64,9 @@ function Cena({ boost }) {
   return <canvas ref={ref} aria-hidden="true" />;
 }
 
+/* Links dedicados: ?perfil=ponto (funcionário) e ?perfil=motorista só mudam a faixa de boas-vindas; o acesso continua pelo e-mail e senha. */
+const ROTULO_PERFIL = { ponto: 'Entrada do funcionário · bater ponto', motorista: 'Entrada do motorista · rota e entregas' }[new URLSearchParams(window.location.search).get('perfil')];
+
 export default function Login({ tema, onEntrar }) {
   const boost = useRef(1);
   const logoRef = useRef(null);
@@ -119,6 +122,7 @@ export default function Login({ tema, onEntrar }) {
       <section className="l-side">
         <form className={`l-card${saindo ? ' sai' : ''}`} onSubmit={enviar} noValidate>
           <h1>Casol <span>Express</span></h1>
+          {temServidor && ROTULO_PERFIL && <p className="l-perfil">{ROTULO_PERFIL}</p>}
           <p className="lead">Gestão de entregas, comissões e caixa em um só lugar.</p>
 
           {temServidor ? (

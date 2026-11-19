@@ -1,3 +1,4 @@
+import { reducaoPorPacote } from './sla.js';
 /* ---------- formatação e datas ---------- */
 export const brl = (c = 0) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const num = (n = 0) => n.toLocaleString('pt-BR');
@@ -98,7 +99,7 @@ export function metricas(S, { ini, fim, empresaId = '', motoristaId = '' }) {
     if (motoristaId && p.motoristaId !== motoristaId) continue;
     const n = p.pacotes.length;
     const mk = p.motoristaId || '_';
-    const pm = (o.porMotorista[mk] ||= { entregues: 0, ocorrencias: 0 });
+    const pm = (o.porMotorista[mk] ||= { entregues: 0, ocorrencias: 0, pendentes: 0 });
     if (p.status === 'entregue') {
       o.entregues += n; pm.entregues += n;
       o.porDia[r.data] = (o.porDia[r.data] || 0) + n;
@@ -107,7 +108,7 @@ export function metricas(S, { ini, fim, empresaId = '', motoristaId = '' }) {
       const limite = addDias(r.data, e?.prazoDias ?? 1);
       if ((p.baixaEm ? diaLocal(p.baixaEm) : r.data) <= limite) o.noPrazo += n; else o.foraPrazo += n;
     } else if (p.status === 'pendente') {
-      o.pendentes += n;
+      o.pendentes += n; pm.pendentes += n;
     } else {
       o.ocorrencias += n; pm.ocorrencias += n;
       const c = p.cidade || 'Sem cidade';
@@ -123,7 +124,7 @@ export function custoMotoristas(S, ini, fim, porMotorista, soMotorista = '') {
   const por = {}; let total = 0;
   for (const m of S.motoristas) {
     if (soMotorista && m.id !== soMotorista) continue;
-    const v = m.tipo === 'fixo' ? Math.round((m.valor * dias) / 30) : (porMotorista[m.id]?.entregues || 0) * valorMotorista(S, m);
+    const v = m.tipo === 'fixo' ? Math.round((m.valor * dias) / 30) : (porMotorista[m.id]?.entregues || 0) * Math.max(valorMotorista(S, m) - reducaoPorPacote(S, m, ini, fim).reducao, 0);
     if (v > 0) { por[m.id] = v; total += v; }
   }
   return { por, total };
@@ -137,8 +138,11 @@ export function acertoQuinzena(S, m, q) {
   const bruto = m.tipo === 'fixo' ? (operou ? Math.round(m.valor / 2) : 0) : pacotes * valorMotorista(S, m);
   const reg = S.acertos.find((a) => a.motoristaId === m.id && a.ini === q.ini);
   const descontos = reg?.descontos || [];
-  const totalDesc = descontos.reduce((s, d) => s + d.valor, 0);
-  return { motorista: m, pacotes, bruto, descontos, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
+  // meta não batida na quinzena: reduz o valor de cada pacote entregue (regra cadastrada em Ajustes)
+  const red = reducaoPorPacote(S, m, q.ini, q.fim);
+  const descMeta = pacotes * red.reducao;
+  const totalDesc = descontos.reduce((s, d) => s + d.valor, 0) + descMeta;
+  return { motorista: m, pacotes, bruto, descontos, descMeta, reducao: red.reducao, slaAplica: red.aplica, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
 }
 
 /* Quinzenas com operação (a partir dos romaneios). */

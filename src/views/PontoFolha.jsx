@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { dataBR, pad, rotuloMes, shiftMes } from '../lib.js';
 import { gerarPdf } from '../pdf.js';
 import { CURTO, fmtMin, fmtSaldo, hhmm, TIPOS } from '../ponto-lib.js';
+import { H2 } from '../components/Recolher.jsx';
 import { Icon } from '../ui.jsx';
 
 const NOTA = 'Registro gerado pelo controle de ponto por localização da Casol Express. Não substitui sistema de ponto homologado quando a lei exigir.';
@@ -48,6 +49,7 @@ export default function PontoFolha({ nome, funcao, mes, folha, cargaMin, onEdita
         {folha.saldo != null && <div className="card"><div className="k-l">Saldo (carga {fmtMin(cargaMin)}/dia)</div><b style={{ font: 'italic 800 28px var(--f1)' }}>{fmtSaldo(folha.saldo)}</b></div>}
       </div>
       <div className="card">
+        <H2 id="folha-dias">Dias do mês</H2>
         <div className="row between" style={{ marginBottom: 8 }}>
           <p className="sub" style={{ margin: 0 }}>Só dias fechados (com saída) entram na soma. Sem regras de feriado, hora extra ou banco de horas: isso a Casol define.</p>
           <div className="row"><button className="btn sm" disabled={!!busy} onClick={pdf}><Icon n="print" size={16} /> {busy === 'pdf' ? 'Gerando…' : 'PDF'}</button><button className="btn sm" disabled={!!busy} onClick={planilha}>{busy === 'xls' ? 'Gerando…' : 'Planilha'}</button></div>

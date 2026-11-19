@@ -3,6 +3,7 @@ import { acertoQuinzena, addDias, brl, centavos, dataBR, hoje, metricas, num, qu
 import { gerarPdf } from '../pdf.js';
 import { act, useStore } from '../store.js';
 import { Icon, Money, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 function Desconto({ onAdd }) {
   const [d, setD] = useState('');
@@ -62,7 +63,7 @@ export default function Comissao() {
       </div>
 
       <div className="card">
-        <h2>O que fica para a empresa nesta quinzena</h2>
+        <H2>O que fica para a empresa nesta quinzena</H2>
         {dados.receita > 0 ? (
           <div className="list"><div className="item"><span>As parceiras pagam</span><b>{brl(dados.receita)}</b></div><div className="item"><span>Vai para os motoristas</span><b>− {brl(totalLiq + acertos.reduce((t, a) => t + a.totalDesc, 0))}</b></div><div className="item"><span>Fica para a empresa</span><b>{brl(dados.receita - totalLiq - acertos.reduce((t, a) => t + a.totalDesc, 0))}</b></div></div>
         ) : <p className="muted small">Informe quanto cada parceira paga por pacote em Ajustes, em Empresas. Assim o sistema mostra quanto entrou, quanto vai para os motoristas e quanto sobra.</p>}
@@ -74,7 +75,7 @@ export default function Comissao() {
       </div>
 
       <div className="card">
-        <h2>Acertos por motorista ({acertos.length})</h2>
+        <H2>Acertos por motorista ({acertos.length})</H2>
         <p className="sub">{brl(falta)} a pagar · toque para ver e aprovar</p>
         {!acertos.length ? <p className="muted">Nenhum acerto nesta quinzena.</p> : (
           <div className="list">
@@ -90,6 +91,7 @@ export default function Comissao() {
                     <div style={{ padding: '0 4px 16px' }}>
                       <div className="list small">
                         <div className="item"><span>Bruto</span><b>{brl(a.bruto)}</b></div>
+                        {a.descMeta > 0 && <div className="item"><span>Meta não cumprida · {brl(a.reducao)} a menos em cada um dos {num(a.pacotes)} pacotes</span><b>− {brl(a.descMeta)}</b></div>}
                         {a.descontos.map((d) => (<div className="item" key={d.id}><span>Desconto · {d.desc}</span><span className="row"><b>− {brl(d.valor)}</b>{!a.aprovado && <button className="btn sm danger" onClick={() => act.descontoDel(a.reg.id, d.id)} aria-label="Remover desconto"><Icon n="x" size={14} /></button>}</span></div>))}
                         <div className="item"><span>Líquido</span><b>{brl(a.liquido)}</b></div>
                       </div>

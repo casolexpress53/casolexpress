@@ -3,6 +3,7 @@ import { addDias, brl, comissoesAbertas, custoMotoristas, dataBR, fluxoPeriodo, 
 import { gerarPdf } from '../pdf.js';
 import { useStore } from '../store.js';
 import { Chips, Delta, Icon, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 export default function Painel({ ir }) {
   const S = useStore();
@@ -53,8 +54,8 @@ export default function Painel({ ir }) {
   const pdf = () => gerarPdf({
     titulo: 'Relatório do painel', subtitulo: `${dataBR(P.ini)} a ${dataBR(P.fim)}`, arquivo: `painel-${P.ini}-${P.fim}.pdf`,
     resumo: [['Pacotes entregues', num(M.entregues)], ['Entregas no prazo', pct(noPrazo)], ['Ocorrências', pct(ocorr)], ['Receita das parceiras', M.semTarifa ? 'tarifa não informada' : brl(M.receita)], ['Custo com motoristas', brl(custo.total)]],
-    colunas: ['Motorista', 'Pacotes', 'Taxa de entrega', 'Ocorrências', 'Custo'],
-    linhas: ranking.map((r) => [r.nome, num(r.entregues), pct(r.taxa), num(r.ocorrencias), brl(r.custo)]),
+    colunas: ['Motorista', 'A entregar', 'Entregues', 'Taxa de entrega', 'Ocorrências', 'Custo'],
+    linhas: ranking.map((r) => [r.nome, num(r.pendentes || 0), num(r.entregues), pct(r.taxa), num(r.ocorrencias), brl(r.custo)]),
   });
 
   return (
@@ -107,7 +108,7 @@ export default function Painel({ ir }) {
 
       <div className="grid g2">
         <div className="card" style={{ '--i': 8 }}>
-          <h2>Quanto fica para a empresa</h2>
+          <H2>Quanto fica para a empresa</H2>
           <p className="sub">{dataBR(P.ini)} a {dataBR(P.fim)}</p>
           {M.semTarifa && <p className="warn small" style={{ marginBottom: 10 }}>Falta informar quanto cada parceira paga por pacote. <button className="btn sm" onClick={() => ir('ajustes')}>Abrir Ajustes</button></p>}
           <div className="list">
@@ -117,7 +118,7 @@ export default function Painel({ ir }) {
           </div>
         </div>
         <div className="card" style={{ '--i': 9 }}>
-          <h2>Meta do mês</h2>
+          <H2>Meta do mês</H2>
           {meta > 0 ? (<>
             <p className="sub">{num(mes.entregues)} de {num(meta)} pacotes · dia {Number(h.slice(8))}</p>
             <div className="prog"><i style={{ width: `${Math.min((mes.entregues / meta) * 100, 100)}%` }} /></div>
@@ -128,15 +129,15 @@ export default function Painel({ ir }) {
 
       <div className="grid g21">
         <div className="card" style={{ '--i': 10 }}>
-          <h2>Ranking de motoristas</h2>
-          <p className="sub">Taxa de entrega = entregues ÷ (entregues + ocorrências) no período.</p>
+          <H2>Ranking de motoristas</H2>
+          <p className="sub">“A entregar” são os pacotes ainda pendentes com cada motorista. Taxa de entrega = entregues ÷ (entregues + ocorrências) no período.</p>
           {ranking.length ? (
-            <div className="tbl-wrap"><table className="tbl"><thead><tr><th>#</th><th>Motorista</th><th className="r">Pacotes</th><th className="r">Taxa</th><th className="r">Ocorr.</th><th className="r">Custo</th></tr></thead>
-              <tbody>{ranking.map((r, i) => (<tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td className="r">{num(r.entregues)}</td><td className="r">{pct(r.taxa)}</td><td className="r">{num(r.ocorrencias)}</td><td className="r">{brl(r.custo)}</td></tr>))}</tbody></table></div>
+            <div className="tbl-wrap"><table className="tbl"><thead><tr><th>#</th><th>Motorista</th><th className="r">A entregar</th><th className="r">Entregues</th><th className="r">Taxa</th><th className="r">Ocorr.</th><th className="r">Custo</th></tr></thead>
+              <tbody>{ranking.map((r, i) => (<tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td className="r">{num(r.pendentes || 0)}</td><td className="r"><b>{num(r.entregues)}</b></td><td className="r">{pct(r.taxa)}</td><td className="r">{num(r.ocorrencias)}</td><td className="r">{brl(r.custo)}</td></tr>))}</tbody></table></div>
           ) : <p className="muted">Sem entregas atribuídas a motoristas neste período.</p>}
         </div>
         <div className="card" style={{ '--i': 11 }}>
-          <h2>Onde está falhando</h2>
+          <H2>Onde está falhando</H2>
           <p className="sub">{num(M.ocorrencias)} pacote(s) com ocorrência no período.</p>
           {cidades.length ? cidades.map(([c, n]) => (<div className="hbar" key={c}><span>{c}</span><div><i style={{ width: `${(n / maxC) * 100}%` }} /></div><b>{n}</b></div>)) : <p className="muted">Nenhuma ocorrência no período.</p>}
         </div>

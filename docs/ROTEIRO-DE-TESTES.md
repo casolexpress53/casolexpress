@@ -16,7 +16,7 @@
 4. No cadastro desse motorista, em **Acesso**, preencha o **e-mail** dele, clique **Gerar senha** e **Criar acesso**.
    - Aparece uma caixa com o e-mail e a senha. **Anote**: a senha não aparece de novo (dá para clicar em *Redefinir senha* depois).
    - Não precisa de e-mail de confirmação nem de liberar nada no Supabase.
-5. **Ponto → Equipe e locais → Novo colaborador:** cadastre um colaborador de teste (veja a Parte B).
+5. Menu **Funcionários → Novo funcionário:** cadastre um funcionário de teste (veja a Parte B).
 
 ---
 
@@ -28,7 +28,7 @@
 
 **A3. Distribuir ao motorista.** Entregas → toque numa parada → escolha o motorista de teste. Faça isso com 6 paradas.
 
-**A4. Motorista no celular.** Abra o endereço do sistema no celular e entre com o e-mail e a senha criados na Parte 0.
+**A4. Motorista no celular.** Abra o link https://is.gd/casolmotorista no celular e entre com o e-mail e a senha criados na Parte 0.
 - Ele vê só as paradas dele, em *Minha rota*.
 - Dê baixa em **5 paradas como "Entregue"** e em **1 como "Ocorrência → Cliente ausente"**.
 
@@ -42,20 +42,28 @@
 
 **A7. Regra própria.** Ajustes → *Regra de cada motorista* → escolha **Regra própria** para o motorista de teste e coloque outra meta (por exemplo taxa mínima 80). Volte ao menu SLA: ele deve passar a **Cumprindo**. Teste também **Sem meta** (ele deixa de ser avaliado).
 
+**A8. Redução do valor por pacote.** Ajustes → *Metas de SLA dos motoristas* → **Se não bater a meta**.
+- Escolha **Reduzir um valor fixo por pacote** (ex.: R$ 0,50) ou **uma porcentagem** (ex.: 10%).
+- Vale para a **quinzena**: se qualquer meta ficar abaixo, cada pacote entregue na quinzena é pago com a redução.
+- *Esperado:* em **Comissão**, o acerto do motorista abaixo da meta mostra a linha **"Meta não cumprida"** (ex.: 46 pacotes × R$ 0,50 = − R$ 23,00) e o líquido já vem com o desconto. Na aba **SLA**, a coluna **"No pagamento"** mostra a redução. Quem cumpre a meta não tem redução; salário fixo não muda.
+- Dá para definir uma redução **própria** para um motorista (*Regra própria*) ou **Sem meta**.
+
+**A9. Ranking.** Painel → **Ranking de motoristas**: cada motorista mostra **A entregar** (pacotes pendentes com ele) e **Entregues**, além de taxa, ocorrências e custo.
+
 **Anote:** os números batem com a conta que você faria na mão? As metas estão como combinado?
 
 ---
 
 ## Parte B · Ponto (colaborador)
 
-**B1. Cadastrar o colaborador.** Ponto → *Equipe e locais* → *Novo colaborador*.
+**B1. Cadastrar o funcionário.** Menu **Funcionários** → *Novo funcionário* (é aqui que se cadastra quem opera e bate ponto).
 - Nome, função (Operacional, Ajudante…) e carga diária em horas (opcional).
 - **Local do ponto:** estando **no local de trabalho**, com o celular, clique **Usar minha localização atual**. (Ou cole as coordenadas do Google Maps.) Raio padrão: **100 metros**.
 - Se a pessoa **não bate ponto**, desmarque **Bate ponto**: ela não aparece na folha e não consegue bater.
 
-**B2. Criar o acesso.** Reabra o colaborador (*Editar*) → em **Acesso**, e-mail → **Gerar senha** → **Criar acesso**. Anote e envie ao colaborador.
+**B2. Criar o acesso.** Reabra o funcionário (*Editar*) → em **Acesso**, e-mail → **Gerar senha** → **Criar acesso**. Anote e envie ao colaborador.
 
-**B3. Colaborador no celular.** Entre com o e-mail e a senha. Quando o navegador pedir, **permita a localização**.
+**B3. Funcionário no celular.** Link: https://is.gd/casolponto — Entre com o e-mail e a senha. Quando o navegador pedir, **permita a localização**.
 
 **B4. Bater ponto dentro do local.** Aba *Hoje* → botão **Entrada**.
 - *Esperado:* "Entrada registrada (a X m do local)".
@@ -92,6 +100,15 @@
 4. Quem está só olhando recebe um aviso em até 30 segundos quando outra pessoa muda algo.
 
 ---
+
+## Parte D · Esconder listas
+Todo cartão do sistema tem um botão **Ocultar / Mostrar** ao lado do título (Painel, Entregas, Romaneio, Comissão, Caixa, SLA, Funcionários, Ponto, Ajustes…). No celular do motorista dá para esconder cada cidade e a lista de "Já baixadas". A escolha fica guardada naquele aparelho.
+
+## Links para passar à equipe
+- **Funcionários (bater ponto):** https://is.gd/casolponto
+- **Motoristas:** https://is.gd/casolmotorista
+Os dois levam ao mesmo sistema; a diferença é só a faixa de boas-vindas na entrada. Cada pessoa entra com o **e-mail e a senha** criados pelo gestor (menu Funcionários ou Ajustes → Motoristas).
+No celular, vale **adicionar à tela inicial** (Android: menu ⋮ do Chrome → *Adicionar à tela inicial*; iPhone: botão de compartilhar → *Adicionar à Tela de Início*).
 
 ## O que ainda não está pronto (já sabemos)
 - O motorista no celular vê **Minha rota** e **Metas**. O *extrato* dele ainda é só na visão do gestor.

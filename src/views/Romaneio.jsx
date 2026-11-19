@@ -4,6 +4,7 @@ import { analisar } from '../romaneio-lib.js';
 import { linhasExemplo } from '../seed.js';
 import { act, getState, useStore } from '../store.js';
 import { Icon, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 async function lerArquivo(file) {
   const XLSX = await import('xlsx');
@@ -51,7 +52,7 @@ export default function Romaneio() {
   return (
     <div className="stack">
       <div className="card">
-        <h2>1. Traga a lista da plataforma</h2>
+        <H2>1. Traga a lista da plataforma</H2>
         <p className="sub">Baixe a lista da empresa parceira em Excel ou CSV e solte aqui. O sistema junta tudo que vai para o mesmo cliente. Se o arquivo trouxer o entregador cadastrado, cada parada já vai para o motorista certo.</p>
         {!S.empresas.length ? (
           <div className="form">
@@ -79,7 +80,7 @@ export default function Romaneio() {
 
       {prev && (
         <div className="card ac">
-          <h2>Conferir antes de importar</h2>
+          <H2>Conferir antes de importar</H2>
           <p className="sub">{prev.arquivo}</p>
           <div className="grid g4">
             <div><div className="k-v">{num(prev.pacotes)}</div><div className="k-s">pacotes únicos</div></div>
@@ -102,7 +103,7 @@ export default function Romaneio() {
 
       <div className="grid g2">
         <div className="card">
-          <h2>Como o agrupamento funciona</h2>
+          <H2>Como o agrupamento funciona</H2>
           <div className="list small">
             <div className="item"><span><b>Remove pacotes repetidos.</b> O mesmo código lido duas vezes conta uma vez só.</span></div>
             <div className="item"><span><b>Junta pelo mesmo endereço.</b> “Rua” e “R.”, maiúsculas, acentos e “nº” não atrapalham.</span></div>
@@ -110,7 +111,7 @@ export default function Romaneio() {
           </div>
         </div>
         <div className="card">
-          <h2>Distribuir rotas</h2>
+          <H2>Distribuir rotas</H2>
           <p className="sub">Paradas pendentes sem motorista, por cidade.</p>
           {!semMot.length ? <p className="muted">Nenhuma parada sem motorista.</p> : semMot.map(([c, n]) => (
             <div className="item" key={c}>
@@ -124,7 +125,7 @@ export default function Romaneio() {
       </div>
 
       <div className="card">
-        <h2>Romaneios importados</h2>
+        <H2>Romaneios importados</H2>
         {!romaneios.length ? <Vazio titulo="Nenhum romaneio" texto="Importe a primeira lista para começar." /> : (
           <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Data</th><th>Empresa</th><th className="r">Paradas</th><th className="r">Pacotes</th><th>Situação</th><th /></tr></thead><tbody>
             {romaneios.slice(0, 60).map((r) => {

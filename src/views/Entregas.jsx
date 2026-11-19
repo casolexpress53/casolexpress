@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { dataBR, diaLocal, horaLocal, STATUS } from '../lib.js';
 import { act, useStore } from '../store.js';
 import { Chips, Modal, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 const tom = (s) => (s === 'entregue' ? 'ok' : s === 'pendente' ? '' : 'bad');
 
@@ -36,7 +37,7 @@ export default function Entregas() {
       </div>
 
       <div className="card">
-        <h2>Paradas ({lista.length})</h2>
+        <H2>Paradas ({lista.length})</H2>
         <p className="sub">{lista.reduce((t, p) => t + p.pacotes.length, 0)} pacotes · toque numa parada para ver os detalhes</p>
         {!lista.length ? <p className="muted">Nenhuma parada com esse filtro.</p> : (
           <div className="list">

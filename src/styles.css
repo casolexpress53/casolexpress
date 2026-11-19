@@ -253,3 +253,13 @@ label.f { display: grid; gap: 6px; font-size: 13px; color: var(--tx2); }
 .aviso.conflito { border-color: var(--bad); }
 .aviso.info { border-color: var(--ac); }
 .aviso span { font-size: 14px; line-height: 1.4; }
+
+/* ---------- esconder listas ---------- */
+.card h2.h2rec { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rec-btn { border: 1px solid var(--line); background: var(--surface2); color: var(--tx2); border-radius: 99px; padding: 4px 12px; font: 600 12px var(--f2, inherit); cursor: pointer; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.rec-btn:hover { color: var(--tx); }
+.rec-btn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+.card.recolhido > *:not(.cab-rec) { display: none !important; }
+.card.recolhido h2.h2rec { margin-bottom: 0; }
+
+.l-card .l-perfil { display: inline-block; margin: 8px 0 0; padding: 5px 12px; border-radius: 99px; font-size: 12.5px; font-weight: 700; background: color-mix(in srgb, var(--ac) 18%, transparent); color: var(--ac); }

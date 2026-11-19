@@ -3,6 +3,7 @@ import { dataBR, MESES, parse } from '../lib.js';
 import { fmtHoraSeg, folhaMes, hhmm, hojeBR, mensagemErro, proximos, resumoDia, ROTULO, fmtMin, TIPOS } from '../ponto-lib.js';
 import { usePontoColab } from '../ponto.js';
 import { Chips, Vazio } from '../ui.jsx';
+import { Rec } from '../components/Recolher.jsx';
 import PontoFolha, { NavMes } from './PontoFolha.jsx';
 
 const mesDe = (d) => `${d.slice(0, 8)}01`;
@@ -104,17 +105,18 @@ export default function PontoColab({ colaboradorId }) {
           <button className="btn ac" disabled={busy || !aj.data || !aj.hora || !aj.motivo.trim()}>Enviar pedido</button>
           <p role="status" aria-live="polite" className={`small ${ajMsg?.ok === false ? 'l-err' : 'muted'}`}>{ajMsg?.texto}</p>
         </form>
-        <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '14px 0 4px' }}>Meus pedidos</h3>
-        {H.pedidos.length === 0 ? <p className="small muted">Nenhum pedido ainda.</p> : (
-          <div className="list">
-            {H.pedidos.slice(0, 12).map((p) => (
-              <div className="item" key={p.id}>
-                <div><b>{dataBR(p.data)}</b> · {ROTULO[p.tipo]} · {p.hora}<div className="small muted">{p.motivo}{p.resposta && <> — resposta: {p.resposta}</>}</div></div>
-                <span className={`tag ${STATUS[p.status][0]}`}>{STATUS[p.status][1]}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <Rec id="meus-pedidos" titulo={<b>Meus pedidos</b>}>
+          {H.pedidos.length === 0 ? <p className="small muted">Nenhum pedido ainda.</p> : (
+            <div className="list">
+              {H.pedidos.slice(0, 12).map((p) => (
+                <div className="item" key={p.id}>
+                  <div><b>{dataBR(p.data)}</b> · {ROTULO[p.tipo]} · {p.hora}<div className="small muted">{p.motivo}{p.resposta && <> — resposta: {p.resposta}</>}</div></div>
+                  <span className={`tag ${STATUS[p.status][0]}`}>{STATUS[p.status][1]}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Rec>
       </>)}
     </div>
   );

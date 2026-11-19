@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { num, PERIODOS, periodo } from '../lib.js';
-import { avaliarSla, METRICAS_SLA, STATUS_SLA, temAlgumaMeta } from '../sla.js';
+import { brl, num, PERIODOS, periodo } from '../lib.js';
+import { avaliarSla, METRICAS_SLA, penalidadeEfetiva, reducaoPorPacote, STATUS_SLA, temAlgumaMeta } from '../sla.js';
 import { useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 /* resultado de uma meta: valor real (colorido) e a meta ao lado */
 export const CelulaSla = ({ r }) => (r ? (
@@ -36,10 +37,10 @@ export default function Sla({ ir }) {
         <div className="card"><div className="k-l">Sem dados ou sem meta</div><div className="k-v">{cont('sem_dados') + cont('sem_meta')}</div></div>
       </div>
       <div className="card">
-        <h2>Metas por motorista</h2>
+        <H2>Metas por motorista</H2>
         <p className="sub">Só entram pacotes com baixa (entregue ou ocorrência). Quem está abaixo aparece primeiro.</p>
         <div className="tbl-wrap"><table className="tbl">
-          <thead><tr><th>Motorista</th><th>Situação</th>{METRICAS_SLA.map((x) => <th key={x.k}>{x.rotulo}</th>)}<th className="r">Pacotes</th></tr></thead>
+          <thead><tr><th>Motorista</th><th>Situação</th>{METRICAS_SLA.map((x) => <th key={x.k}>{x.rotulo}</th>)}<th>No pagamento</th><th className="r">Pacotes</th></tr></thead>
           <tbody>{linhas.map(({ m, r }) => {
             const [cls, rot] = STATUS_SLA[r.status];
             return (
@@ -47,6 +48,7 @@ export default function Sla({ ir }) {
                 <td><b>{m.nome}</b></td>
                 <td><span className={`tag ${cls}`}>{rot}{r.status === 'abaixo' ? ` (${r.abaixo})` : ''}</span></td>
                 {METRICAS_SLA.map((x) => <td key={x.k}><CelulaSla r={r.regras.find((g) => g.k === x.k)} /></td>)}
+                <td className="small">{(() => { const e = reducaoPorPacote(S, m, P.ini, P.fim); return e.aplica ? <span className="tag bad">− {brl(e.reducao)} por pacote</span> : penalidadeEfetiva(S, m) ? <span className="muted">sem redução</span> : <span className="muted">—</span>; })()}</td>
                 <td className="r">{num(r.entregues)}</td>
               </tr>
             );

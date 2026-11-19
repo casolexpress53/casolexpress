@@ -7,6 +7,7 @@ import { Chips, Icon, Modal, Vazio } from '../ui.jsx';
 import AcessoBox from '../components/AcessoBox.jsx';
 import PontoColab from './PontoColab.jsx';
 import PontoFolha, { NavMes } from './PontoFolha.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 const mesDe = (d) => `${d.slice(0, 8)}01`;
 const STATUS = { pendente: ['warn', 'Pendente'], aprovado: ['ok', 'Aprovado'], recusado: ['bad', 'Recusado'] };
@@ -49,7 +50,7 @@ function ColabForm({ aberto, colab, onFechar, P }) {
   }
 
   return (
-    <Modal aberto={aberto} fechar={onFechar} titulo={novo ? 'Novo colaborador' : `Editar ${colab.nome}`}>
+    <Modal aberto={aberto} fechar={onFechar} titulo={novo ? 'Novo funcionário' : `Editar ${colab.nome}`}>
       <div className="stack">
         <div className="form">
           <label className="f">Nome<input className="inp" value={f.nome} onChange={(e) => set('nome', e.target.value)} /></label>
@@ -108,9 +109,10 @@ function DiaForm({ aberto, dia, colab, onFechar, P }) {
   );
 }
 
-export default function Ponto() {
+/* `so='equipe'`: abre só o cadastro de funcionários (item próprio do menu). */
+export default function Ponto({ so }) {
   const hojeI = hojeBR(), mesAtual = mesDe(hojeI);
-  const [aba, setAba] = useState('hoje');
+  const [aba, setAba] = useState(so || 'hoje');
   const [mes, setMes] = useState(mesAtual);
   const [quem, setQuem] = useState('');
   const [edit, setEdit] = useState(null);       // { colab | null } no cadastro
@@ -149,20 +151,20 @@ export default function Ponto() {
   return (
     <div className="stack">
       <div className="row between">
-        <Chips valor={aba} onChange={setAba} opcoes={[['hoje', 'Hoje'], ['folha', 'Folha do mês'], ['pedidos', 'Pedidos de ajuste', pend.length || undefined], ['equipe', 'Equipe e locais', P.colaboradores.length]]} />
+        {so ? <span /> : <Chips valor={aba} onChange={setAba} opcoes={[['hoje', 'Hoje'], ['folha', 'Folha do mês'], ['pedidos', 'Pedidos de ajuste', pend.length || undefined], ['equipe', 'Funcionários e locais', P.colaboradores.length]]} />}
         {temServidor && <button className="btn sm" onClick={P.recarregar}>Atualizar</button>}
       </div>
       {(erro || P.erro) && <p className="l-err" role="alert">{erro || P.erro}</p>}
 
       {!P.carregando && P.colaboradores.length === 0 && aba !== 'equipe' && (
-        <div className="card"><Vazio titulo="Nenhum colaborador" texto="Cadastre quem vai bater ponto e o local de trabalho dele.">
-          <button className="btn ac" onClick={() => { setAba('equipe'); setEdit({ colab: null }); }}><Icon n="plus" size={18} /> Cadastrar colaborador</button>
+        <div className="card"><Vazio titulo="Nenhum funcionário cadastrado" texto="Cadastre quem vai operar e bater ponto, e o local de trabalho dele.">
+          <button className="btn ac" onClick={() => { setAba('equipe'); setEdit({ colab: null }); }}><Icon n="plus" size={18} /> Cadastrar funcionário</button>
         </Vazio></div>
       )}
 
       {aba === 'hoje' && hojeLinhas.length > 0 && (
         <div className="card">
-          <h2>Hoje · {dataBR(hojeI)}</h2>
+          <H2>Hoje · {dataBR(hojeI)}</H2>
           <div className="tbl-wrap"><table className="tbl">
             <thead><tr><th>Colaborador</th><th>Situação</th>{TIPOS.map((t) => <th key={t}>{CURTO[t]}</th>)}<th className="r">Horas</th></tr></thead>
             <tbody>{hojeLinhas.map(({ c, lista, estado, desde, min, sem }) => (
@@ -187,7 +189,7 @@ export default function Ponto() {
 
       {aba === 'pedidos' && (
         <div className="card">
-          <h2>Pedidos de ajuste</h2>
+          <H2>Pedidos de ajuste</H2>
           <p className="sub">Aprovar grava o horário na folha como “ajustado”. Recusar mantém a folha como está.</p>
           {P.pedidos.length === 0 ? <Vazio titulo="Nenhum pedido" texto="Quando um colaborador pedir ajuste, aparece aqui." /> : (
             <div className="list">
@@ -199,16 +201,16 @@ export default function Ponto() {
 
       {aba === 'equipe' && (
         <div className="card">
-          <div className="row between"><h2>Equipe e locais</h2><button className="btn ac" onClick={() => setEdit({ colab: null })}><Icon n="plus" size={18} /> Novo colaborador</button></div>
-          <p className="sub">O colaborador só consegue bater o ponto dentro do raio do local cadastrado. A localização é lida apenas na hora da batida.</p>
-          {P.colaboradores.length === 0 ? <Vazio titulo="Ninguém cadastrado" texto="Adicione o primeiro colaborador." /> : (
+          <div className="row between"><H2 id="funcionarios">Funcionários e locais</H2><button className="btn ac" onClick={() => setEdit({ colab: null })}><Icon n="plus" size={18} /> Novo funcionário</button></div>
+          <p className="sub">O funcionário só consegue bater o ponto dentro do raio do local cadastrado. A localização é lida apenas na hora da batida.</p>
+          {P.colaboradores.length === 0 ? <Vazio titulo="Ninguém cadastrado" texto="Adicione o primeiro funcionário: nome, função, local do ponto e acesso ao sistema." /> : (
             <div className="list">
               {P.colaboradores.map((c) => (
                 <div className="item" key={c.id}>
                   <div><b>{c.nome}</b>{c.funcao && <span className="muted"> · {c.funcao}</span>}{!c.ativo && <span className="tag" style={{ marginLeft: 8 }}>Inativo</span>}{c.batePonto === false && <span className="tag" style={{ marginLeft: 8 }}>Não bate ponto</span>}
                     <div className="small muted">{c.batePonto === false ? 'Sem registro de ponto' : c.temLocal ? `${c.endereco || 'Local definido'} · raio ${c.raio || RAIO_PADRAO} m` : <span style={{ color: 'var(--bad)' }}>Sem local: não consegue bater ponto</span>}{temServidor && c.batePonto !== false && ` · ${c.vinculado ? 'com acesso' : 'sem acesso ao app'}`}</div></div>
                   <div className="row">
-                    {!temServidor && c.batePonto !== false && <button className="btn sm" onClick={() => setVer(c.id)}>Ver como colaborador</button>}
+                    {!temServidor && c.batePonto !== false && <button className="btn sm" onClick={() => setVer(c.id)}>Ver como funcionário</button>}
                     <button className="btn sm" onClick={() => setEdit({ colab: c })}>Editar</button>
                     <button className="btn sm danger" aria-label={`Remover ${c.nome}`} onClick={() => window.confirm(`Remover ${c.nome}? As batidas dele também serão apagadas. Para só impedir novas batidas, desmarque “Ativo”.`) && agir(() => P.removerColab(c.id))}><Icon n="x" size={14} /></button>
                   </div>

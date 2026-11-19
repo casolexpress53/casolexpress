@@ -5,9 +5,26 @@ import { brl } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
 import { Icon, Money } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
+
+/* redução do valor por pacote quando a meta não é batida: Nenhuma | valor fixo (R$ por pacote) | percentual */
+function Reducao({ pen, onChange, rotulo }) {
+  const tipo = pen?.tipo || '';
+  return (
+    <div className="row" style={{ alignItems: 'end' }}>
+      <label className="f" style={{ minWidth: 220 }}>{rotulo}
+        <select className="sel" value={tipo} onChange={(e) => onChange(e.target.value ? { tipo: e.target.value, valor: 0 } : null)}>
+          <option value="">Não reduzir</option><option value="valor">Reduzir um valor fixo por pacote (R$)</option><option value="percentual">Reduzir uma porcentagem do valor por pacote (%)</option>
+        </select>
+      </label>
+      {tipo === 'valor' && <label className="f" style={{ maxWidth: 160 }}>Reduzir por pacote (R$)<Money valor={pen.valor || 0} onChange={(v) => onChange({ tipo, valor: v })} /></label>}
+      {tipo === 'percentual' && <label className="f" style={{ maxWidth: 160 }}>Reduzir (%)<input className="inp" type="number" min="0" max="100" step="0.5" value={pen.valor || ''} onChange={(e) => onChange({ tipo, valor: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} /></label>}
+    </div>
+  );
+}
 
 /* campo de meta: vazio = sem meta */
 const Meta = ({ m, valor, onChange }) => (
@@ -31,7 +48,7 @@ export default function Ajustes() {
   return (
     <div className="stack">
       <div className="card">
-        <h2>Motoristas</h2>
+        <H2>Motoristas</H2>
         <p className="sub">Quanto cada um recebe. Fixos têm salário mensal (a quinzena paga metade). Os demais recebem por pacote entregue; deixe em branco para usar o valor padrão.</p>
         <div className="list">
           {S.motoristas.map((x) => (
@@ -53,9 +70,9 @@ export default function Ajustes() {
       </div>
 
       <div className="card">
-        <h2>Valores e prazos</h2>
+        <H2>Valores e prazos</H2>
         <label className="f" style={{ maxWidth: 320 }}>Valor padrão por pacote entregue (motoristas)<Money valor={S.ajustes.valorPadrao} onChange={(v) => act.ajustes({ valorPadrao: v })} /></label>
-        <h2 style={{ marginTop: 24 }}>Empresas ({S.empresas.length})</h2>
+        <H2 style={{ marginTop: 24 }}>Empresas ({S.empresas.length})</H2>
         <p className="sub">“Recebe por pacote” é o valor que a empresa parceira paga a vocês. Sem ele, receita e margem não aparecem no painel. O prazo diz em quantos dias a entrega ainda conta como no prazo.</p>
         <div className="list">
           {S.empresas.map((x) => (
@@ -76,7 +93,7 @@ export default function Ajustes() {
       </div>
 
       <div className="card">
-        <h2>Metas de SLA dos motoristas</h2>
+        <H2>Metas de SLA dos motoristas</H2>
         <p className="sub">As metas acordadas. Deixe em branco o que não for avaliar. A meta padrão vale para todo motorista que não tiver regra própria; a gestão acompanha na aba SLA.</p>
         <div className="form">
           {METRICAS_SLA.map((x) => (
@@ -86,6 +103,9 @@ export default function Ajustes() {
           ))}
         </div>
         <p className="small muted" style={{ marginTop: 8 }}>{METRICAS_SLA.map((x) => `${x.rotulo}: ${x.ajuda}`).join(' ')}</p>
+        <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Se não bater a meta</h3>
+        <p className="small muted">Se <b>qualquer</b> meta ficar abaixo no período do acerto (a quinzena), o valor de <b>cada pacote entregue</b> nessa quinzena é pago com a redução. Vale para quem é pago por pacote; o salário fixo não muda. Aparece como “Meta não cumprida” na Comissão.</p>
+        <Reducao rotulo="Redução padrão" pen={S.ajustes.sla?.penalidade} onChange={(p) => act.ajustes({ sla: { ...S.ajustes.sla, penalidade: p } })} />
         <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Regra de cada motorista</h3>
         {S.motoristas.length === 0 ? <p className="small muted">Cadastre motoristas acima para definir regras por motorista.</p> : (
           <div className="list">
@@ -100,6 +120,7 @@ export default function Ajustes() {
                   {modo === 'proprio' && METRICAS_SLA.map((x) => (
                     <label className="f" key={x.k} style={{ flex: '1 1 110px' }}>{x.rotulo}<Meta m={x} valor={mo.sla?.[x.k]} onChange={(v) => setSla({ [x.k]: v })} /></label>
                   ))}
+                  {modo === 'proprio' && <div style={{ flex: '1 1 100%' }}><Reducao rotulo="Redução deste motorista" pen={mo.sla?.penalidade} onChange={(p) => setSla({ penalidade: p })} /></div>}
                 </div>
               );
             })}
@@ -109,12 +130,12 @@ export default function Ajustes() {
 
       <div className="grid g2">
         <div className="card">
-          <h2>Meta do mês</h2>
+          <H2>Meta do mês</H2>
           <p className="sub">Meta de pacotes entregues por mês. Vale para todos os meses até você mudar.</p>
           <label className="f" style={{ maxWidth: 220 }}>Pacotes por mês<input className="inp" type="number" min="0" value={S.ajustes.meta || ''} onChange={(ev) => act.ajustes({ meta: Math.max(0, Number(ev.target.value) || 0) })} /></label>
         </div>
         <div className="card">
-          <h2>Categorias do caixa</h2>
+          <H2>Categorias do caixa</H2>
           <p className="sub">Crie as suas além das que já vêm prontas.</p>
           <div className="chips">{S.ajustes.categorias.map((c) => <button key={c} className="chip" onClick={() => act.ajustes({ categorias: S.ajustes.categorias.filter((x) => x !== c) })} title="Remover">{c} ✕</button>)}</div>
           <div className="row" style={{ marginTop: 12 }}>
@@ -125,7 +146,7 @@ export default function Ajustes() {
       </div>
 
       <div className="card">
-        <h2>Dados</h2>
+        <H2>Dados</H2>
         {temServidor ? (<>
           <p className="sub">Os dados ficam salvos na nuvem (Supabase da Casol). O arquivo abaixo é uma cópia extra, para guardar fora do sistema.</p>
           <div className="row"><button className="btn" onClick={backup}>Baixar cópia (JSON)</button></div>

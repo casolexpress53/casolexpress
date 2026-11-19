@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { act, useStore } from '../store.js';
 import { Icon, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 export default function Rastreador() {
   const S = useStore();
@@ -10,12 +11,12 @@ export default function Rastreador() {
   return (
     <div className="stack">
       <div className="card ac">
-        <h2>Rastreamento</h2>
+        <H2>Rastreamento</H2>
         <p>Integração ainda não conectada. Enquanto isso, o sistema usa o GPS do celular do motorista na hora da baixa como posição de apoio.</p>
         <p className="k-s" style={{ marginTop: 8 }}>Quando houver um provedor de rastreamento definido, o acesso de integração fica no servidor, nunca no navegador.</p>
       </div>
       <div className="card">
-        <h2>Veículos</h2>
+        <H2>Veículos</H2>
         <p className="sub">O ID do rastreador é o número que o provedor mostra para cada aparelho. Pode deixar em branco por enquanto.</p>
         <div className="form">
           <label className="f">Placa<input className="inp" value={f.placa} onChange={(e) => setF({ ...f, placa: e.target.value })} maxLength={8} /></label>
@@ -25,7 +26,7 @@ export default function Rastreador() {
         </div>
       </div>
       <div className="card">
-        <h2>Veículos cadastrados ({S.veiculos.length})</h2>
+        <H2>Veículos cadastrados ({S.veiculos.length})</H2>
         {!S.veiculos.length ? <Vazio titulo="Nenhum ainda" texto="Cadastre a placa e o motorista de cada veículo." /> : (
           <div className="list">{S.veiculos.map((v) => (
             <div className="item" key={v.id}>

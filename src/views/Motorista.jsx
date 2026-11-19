@@ -4,6 +4,7 @@ import { act, useStore } from '../store.js';
 import { temServidor } from '../auth.js';
 import { avaliarSla, STATUS_SLA } from '../sla.js';
 import { Chips, Icon, Modal, Vazio } from '../ui.jsx';
+import { Rec } from '../components/Recolher.jsx';
 import { CelulaSla } from './Sla.jsx';
 
 function posicao() {
@@ -62,8 +63,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
           <p className="small muted">{dados.pend.length} parada(s) faltam · {dados.feitas.length} baixada(s) hoje</p>
 
           {Object.entries(dados.porCidade).map(([cid, ps]) => (
-            <section key={cid} style={{ marginTop: 18 }}>
-              <p className="k-l"><b>{cid}</b> · {ps.length} parada(s) pendente(s)</p>
+            <Rec key={cid} id={`rota-${cid}`} titulo={<><b>{cid}</b> · {ps.length} parada(s) pendente(s)</>}>
               {ps.slice(0, lim).map((p) => (
                 <div className="stop" key={p.id}>
                   <b>{p.endereco}</b>
@@ -75,20 +75,20 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
                 </div>
               ))}
               {ps.length > lim && <button className="btn sm" style={{ marginTop: 10 }} onClick={() => setLim(lim + 12)}>Mostrar mais ({ps.length - lim})</button>}
-            </section>
+            </Rec>
           ))}
           {!dados.pend.length && <p className="muted" style={{ marginTop: 18 }}>Nenhuma parada pendente. Bom trabalho!</p>}
 
           {dados.feitas.length > 0 && (
-            <section style={{ marginTop: 22 }}>
-              <p className="k-l"><b>Já baixadas ({dados.feitas.length})</b> · as últimas 8, com opção de desfazer</p>
+            <Rec id="baixadas" titulo={<b>Já baixadas ({dados.feitas.length})</b>}>
+              <p className="small muted">As últimas 8, com opção de desfazer.</p>
               {dados.feitas.slice(0, 8).map((p) => (
                 <div className="stop" key={p.id}>
                   <div className="row between"><span><b>{p.endereco}</b><span className="small muted">{STATUS[p.status]}</span></span>
                     <button className="btn sm" onClick={() => act.desfazer(p.id)} aria-label="Desfazer baixa"><Icon n="undo" size={16} /> Desfazer</button></div>
                 </div>
               ))}
-            </section>
+            </Rec>
           )}
           <p className="small muted" style={{ marginTop: 18 }}>Ao dar baixa, a localização do celular é guardada junto como posição de apoio (se você permitir).</p>
         </>) : aba === 'metas' ? (

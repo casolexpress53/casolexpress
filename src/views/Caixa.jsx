@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { addDias, brl, CAT_COMISSAO, CATEGORIAS_BASE, comissoesAbertas, custoMotoristas, dataBR, fluxoPeriodo, hoje, metricas, pct, periodo, rotuloMes, saldoHoje, saldoPrevisto, shiftMes } from '../lib.js';
 import { act, useStore } from '../store.js';
 import { Chips, Icon, Money, Vazio } from '../ui.jsx';
+import { H2 } from '../components/Recolher.jsx';
 
 function Novo({ cats }) {
   const h = hoje();
@@ -76,24 +77,24 @@ export default function Caixa({ ir }) {
 
       <div className="grid g2">
         <div className="card">
-          <h2>Quanto a empresa ganha em {rotuloMes(h)}</h2>
+          <H2>Quanto a empresa ganha em {rotuloMes(h)}</H2>
           {M.receita > 0 ? (
             <div className="list"><div className="item"><span>As parceiras pagam</span><b>{brl(M.receita)}</b></div><div className="item"><span>Motoristas (comissões e fixos)</span><b>− {brl(custo.total)}</b></div><div className="item"><span>Despesas pagas</span><b>− {brl(fluxo.despesas)}</b></div><div className="item"><span>Fica para a empresa</span><b className={fica < 0 ? 'down' : 'up'}>{brl(fica)} · {pct(fica / M.receita)}</b></div></div>
           ) : <p className="muted small">Informe quanto cada parceira paga por pacote em Ajustes para ver esta conta.</p>}
           <p className="small muted" style={{ marginTop: 10 }}>Esta conta usa as entregas do mês e o valor combinado com cada parceira. Ela é separada do saldo em conta, que só mostra o dinheiro que realmente entrou e saiu.</p>
         </div>
         <div className="card">
-          <h2>Comissões a pagar</h2>
+          <H2>Comissões a pagar</H2>
           <p className="sub">O que as entregas já geraram para os motoristas e ainda não saiu do caixa.</p>
           <div className="k-v">{brl(totalAb)}</div><div className="k-s">{abertas.length} acerto(s) em aberto</div>
           <button className="btn" style={{ marginTop: 12 }} onClick={() => ir('comissao')}>Aprovar e pagar em Comissão</button>
         </div>
       </div>
 
-      <div className="card"><h2>Novo lançamento</h2><Novo cats={cats} /></div>
+      <div className="card"><H2>Novo lançamento</H2><Novo cats={cats} /></div>
 
       <div className="card">
-        <h2>Lançamentos</h2>
+        <H2>Lançamentos</H2>
         {!lanc.length ? <Vazio titulo="Caixa vazio" texto="Lance a primeira entrada ou saída acima." /> : (
           <div className="list">
             {lanc.slice(0, lim).map((l) => (

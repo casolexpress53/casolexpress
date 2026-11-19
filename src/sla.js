@@ -1,4 +1,4 @@
-import { metricas, pct } from './lib.js';
+import { metricas, pct, valorMotorista } from './lib.js';
 
 /*
   SLA do motorista: metas acordadas, comparadas com o que ele realmente entregou no período.
@@ -47,3 +47,24 @@ export function avaliarSla(S, m, ini, fim) {
   return { regras, abaixo, status, entregues: d.entregues, ocorrencias: d.ocorrencias };
 }
 export const STATUS_SLA = { ok: ['ok', 'Cumprindo'], abaixo: ['bad', 'Abaixo da meta'], sem_dados: ['', 'Sem dados no período'], sem_meta: ['', 'Sem meta definida'] };
+
+/* ---------- redução do valor por pacote quando a meta não é batida ---------- */
+/* Regra cadastrada (padrão em Ajustes ou própria do motorista): { tipo: 'valor' (centavos por pacote) | 'percentual', valor }. */
+export function penalidadeEfetiva(S, m) {
+  const modo = m.sla?.modo || 'padrao';
+  if (modo === 'nenhuma') return null;
+  const p = (modo === 'proprio' ? m.sla : S.ajustes.sla || {}).penalidade;
+  return p && (p.tipo === 'valor' || p.tipo === 'percentual') && Number(p.valor) > 0 ? { tipo: p.tipo, valor: Number(p.valor) } : null;
+}
+
+/* Quanto se reduz por pacote entregue no período [ini, fim]: só se QUALQUER meta ficou abaixo. Sem dados ou sem meta: não reduz. */
+export function reducaoPorPacote(S, m, ini, fim) {
+  const sem = { reducao: 0, aplica: false, pen: null, av: null, base: 0 };
+  if (m.tipo === 'fixo') return sem;
+  const pen = penalidadeEfetiva(S, m);
+  if (!pen) return sem;
+  const av = avaliarSla(S, m, ini, fim), base = valorMotorista(S, m);
+  if (av.status !== 'abaixo') return { ...sem, pen, av, base };
+  const reducao = pen.tipo === 'valor' ? Math.min(Math.round(pen.valor), base) : Math.round((base * Math.min(pen.valor, 100)) / 100);
+  return { reducao, aplica: reducao > 0, pen, av, base };
+}
