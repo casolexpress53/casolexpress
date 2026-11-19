@@ -1,46 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { dataBR, hoje, norm, num } from '../lib.js';
+import { dataBR, hoje, num } from '../lib.js';
+import { analisar } from '../romaneio-lib.js';
 import { linhasExemplo } from '../seed.js';
-import { act, useStore } from '../store.js';
+import { act, getState, useStore } from '../store.js';
 import { Icon, Vazio } from '../ui.jsx';
-
-/* Descobre quais colunas da planilha são código, endereço, etc. (sem depender do nome exato). */
-const COL = [
-  ['entregador', /(entregador|motorista|courier|driver)/], ['codigo', /(codigo|cod\b|rastreio|tracking|awb|barcode|waybill|pedido|pacote)/],
-  ['cidade', /(cidade|city|municipio)/], ['bairro', /(bairro|district)/], ['endereco', /(endereco|address|logradouro|rua)/], ['cliente', /(cliente|destinat|receiver|nome)/],
-];
-function mapear(linhas) {
-  const cab = Object.keys(linhas[0] || {}), usadas = new Set(), m = {};
-  for (const [k, rx] of COL) { const c = cab.find((x) => !usadas.has(x) && rx.test(norm(x))); if (c) { m[k] = c; usadas.add(c); } }
-  return m;
-}
-
-function analisar(linhas, S, empresaId, data) {
-  const m = mapear(linhas);
-  if (!m.codigo || !m.endereco) return { erro: 'Não achei as colunas de código e de endereço. A planilha precisa ter, no mínimo, uma coluna com o código do pacote e outra com o endereço.' };
-  const jaTem = new Set(S.paradas.filter((p) => { const r = S.romaneios.find((x) => x.id === p.romaneioId); return r && r.empresaId === empresaId && r.data === data; }).flatMap((p) => p.pacotes));
-  const vistos = new Set(), grupos = new Map(), semCad = new Set();
-  let repetidos = 0;
-  for (const l of linhas) {
-    const cod = String(l[m.codigo] ?? '').trim(), end = String(l[m.endereco] ?? '').trim();
-    if (!cod || !end) continue;
-    if (vistos.has(cod) || jaTem.has(cod)) { repetidos++; continue; }
-    vistos.add(cod);
-    const cidade = String(m.cidade ? l[m.cidade] : '').trim(), key = `${norm(end)}|${norm(cidade)}`;
-    let g = grupos.get(key);
-    if (!g) {
-      g = { endereco: end, bairro: m.bairro ? String(l[m.bairro]).trim() : '', cidade, cliente: m.cliente ? String(l[m.cliente]).trim() : '', pacotes: [], motoristaId: null, gps: null };
-      if (m.entregador) {
-        const nome = norm(l[m.entregador]);
-        if (nome) { const mo = S.motoristas.find((x) => norm(x.nome) === nome); if (mo) g.motoristaId = mo.id; else semCad.add(String(l[m.entregador]).trim()); }
-      }
-      grupos.set(key, g);
-    }
-    g.pacotes.push(cod);
-  }
-  const paradas = [...grupos.values()];
-  return { paradas, pacotes: vistos.size, repetidos, atribuidas: paradas.filter((p) => p.motoristaId).length, semCad: [...semCad] };
-}
 
 async function lerArquivo(file) {
   const XLSX = await import('xlsx');
@@ -53,6 +16,7 @@ export default function Romaneio() {
   const [empresaId, setEmpresaId] = useState('');
   const [data, setData] = useState(hoje());
   const [prev, setPrev] = useState(null);
+  const [brutas, setBrutas] = useState(null);   // linhas lidas do arquivo (para reanalisar depois de cadastrar motoristas)
   const [erro, setErro] = useState('');
   const [arrastando, setArrastando] = useState(false);
   const [novaEmp, setNovaEmp] = useState('');
@@ -66,10 +30,15 @@ export default function Romaneio() {
       const linhas = await lerArquivo(file);
       if (!linhas.length) return setErro('A planilha está vazia.');
       const r = analisar(linhas, S, emp, data);
-      r.erro ? setErro(r.erro) : setPrev({ ...r, arquivo: file.name });
+      if (r.erro) return setErro(r.erro);
+      setBrutas(linhas); setPrev({ ...r, arquivo: file.name });
     } catch { setErro('Não consegui ler esse arquivo. Use .xlsx, .xls ou .csv.'); }
   }
   const exemplo = () => { setErro(''); const r = analisar(linhasExemplo(36, Math.floor(Math.random() * 900) + 100), S, emp, data); setPrev({ ...r, arquivo: 'exemplo-fictício.xlsx' }); };
+  const cadastrarMotoristas = () => {
+    for (const nome of prev.semCad) act.add('motoristas', { nome, tipo: 'pacote', valor: 0, ativo: true });   // valor 0 = usa o valor padrão de Ajustes
+    setPrev({ ...analisar(brutas, getState(), emp, data), arquivo: prev.arquivo });
+  };
   const confirmar = () => { act.importar({ empresaId: emp, data, arquivo: prev.arquivo, paradas: prev.paradas }); setPrev(null); };
 
   const semMot = useMemo(() => {
@@ -118,7 +87,15 @@ export default function Romaneio() {
             <div><div className="k-v">{num(prev.repetidos)}</div><div className="k-s">repetidos removidos</div></div>
             <div><div className="k-v">{num(prev.atribuidas)}</div><div className="k-s">já com motorista</div></div>
           </div>
-          {prev.semCad.length > 0 && <p className="small" style={{ marginTop: 12 }}>Entregador(es) não cadastrado(s) em Ajustes, essas paradas ficam sem motorista: {prev.semCad.slice(0, 6).join(', ')}{prev.semCad.length > 6 ? '…' : ''}</p>}
+          {prev.entreguesPlat > 0 && <p className="small" style={{ marginTop: 12 }}><b>{num(prev.entreguesPlat)} pacote(s) já constam como entregues na plataforma.</b> Eles entram como <b>entregues</b> (com o horário da entrega da planilha), e não como pendentes.</p>}
+          {prev.semCad.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <p className="small"><b>{prev.semCad.length} entregador(es) da planilha ainda não estão cadastrados</b>; as paradas deles ficam sem motorista: {prev.semCad.slice(0, 5).join(', ')}{prev.semCad.length > 5 ? '…' : ''}.</p>
+              <button className="btn sm" onClick={cadastrarMotoristas}><Icon n="plus" size={16} /> Cadastrar esses {prev.semCad.length} motoristas e atribuir as paradas</button>
+              <p className="small muted" style={{ marginTop: 6 }}>Entram como “por pacote”, usando o valor padrão de Ajustes. Depois você acerta o valor de cada um.</p>
+            </div>
+          )}
+          <p className="small muted" style={{ marginTop: 12 }}>Colunas lidas: {Object.entries(prev.colunas || {}).filter(([k]) => k !== 'enderecoPorConteudo').map(([k, v]) => `${{ codigo: 'código', endereco: 'endereço', cidade: 'cidade', bairro: 'bairro', cliente: 'cliente', entregador: 'entregador', situacao: 'situação', horaEntrega: 'hora da entrega' }[k] || k} = “${v}”`).join(' · ')}.</p>
           <div className="row" style={{ marginTop: 16 }}><button className="btn dark" onClick={confirmar}><Icon n="check" size={18} /> Importar romaneio</button><button className="btn" onClick={() => setPrev(null)}>Cancelar</button></div>
         </div>
       )}
