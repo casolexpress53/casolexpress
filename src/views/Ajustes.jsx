@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
-import { exemploFaixas, regraAtraso } from '../atraso.js';
+import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
 import { brl } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
@@ -11,15 +11,30 @@ import { H2 } from '../components/Recolher.jsx';
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
 
-/* campos da regra de redução por atraso (padrão ou própria do motorista) */
+/* campos da regra de redução por atraso (padrão ou própria do motorista): horário limite + faixas livres */
 function CamposAtraso({ r = {}, onChange }) {
+  const faixas = faixasDe(r);
   const set = (patch) => onChange({ ...r, ...patch });
+  const setF = (i, patch) => set({ faixas: faixas.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   return (
-    <div className="form">
-      <label className="f">Horário limite (no dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
-      <label className="f">Depois do horário, reduzir por pacote (R$)<Money valor={r.apos || 0} onChange={(v) => set({ apos: v })} /></label>
-      <label className="f">A cada dia seguinte, reduzir mais (R$)<Money valor={r.porDia || 0} onChange={(v) => set({ porDia: v })} /></label>
-      <label className="f">Valor mínimo por pacote (R$, opcional)<Money valor={r.minimo || 0} onChange={(v) => set({ minimo: v })} /></label>
+    <div className="stack">
+      <div className="form">
+        <label className="f">Horário limite (no dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
+        <label className="f">Valor mínimo por pacote (R$, opcional)<Money valor={r.minimo || 0} onChange={(v) => set({ minimo: v })} /></label>
+      </div>
+      <div className="list">
+        {faixas.map((f, i) => (
+          <div className="item" key={i} style={{ alignItems: 'end', gap: 8, flexWrap: 'wrap' }}>
+            <label className="f" style={{ flex: '1 1 130px' }}>Quando<select className="sel" value={f.repetir ? 'cada' : 'uma'} onChange={(e) => setF(i, { repetir: e.target.value === 'cada' })}><option value="uma">Depois de (uma vez)</option><option value="cada">A cada (repete)</option></select></label>
+            <label className="f" style={{ flex: '0 1 90px' }}>Tempo<input className="inp" type="number" min="1" step="1" inputMode="numeric" value={f.apos ?? ''} onChange={(e) => setF(i, { apos: e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value))) })} /></label>
+            <label className="f" style={{ flex: '0 1 120px' }}>Unidade<select className="sel" value={f.un || 'min'} onChange={(e) => setF(i, { un: e.target.value })}>{Object.entries(UNIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+            <label className="f" style={{ flex: '1 1 130px' }}>Reduzir por pacote (R$)<Money valor={f.valor || 0} onChange={(v) => setF(i, { valor: v })} /></label>
+            <button type="button" className="btn" aria-label="Remover faixa" onClick={() => set({ faixas: faixas.filter((_, j) => j !== i) })}>Remover</button>
+          </div>
+        ))}
+      </div>
+      <div><button type="button" className="btn" onClick={() => set({ faixas: [...faixas, { apos: 1, un: 'min', valor: 0, repetir: false }] })}>+ Adicionar faixa de atraso</button></div>
+      <p className="small muted">Minutos e horas contam depois do horário limite. “Dias” conta dias de calendário depois do dia da rota (entregou no dia seguinte = 1 dia). As reduções das faixas atingidas se somam.</p>
     </div>
   );
 }
@@ -124,7 +139,7 @@ export default function Ajustes() {
 
       <div className="card">
         <H2 id="reducao-atraso">Redução por atraso na entrega</H2>
-        <p className="sub">Se o motorista entregar depois do horário combinado, o valor de <b>cada pacote</b> é reduzido. O horário vale para o <b>dia da rota</b> (a data do romaneio); entregar no dia seguinte reduz mais, e cada dia a mais reduz mais ainda. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, linha por linha.</p>
+        <p className="sub">Se o motorista entregar depois do horário combinado, o valor de <b>cada pacote</b> é reduzido. Você define o horário limite do <b>dia da rota</b> e as faixas: depois de quantos minutos, horas ou dias, ou a cada quanto tempo, e quanto reduz. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, linha por linha.</p>
         <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar a redução por atraso para todos os motoristas</b></label>
         <CamposAtraso r={S.ajustes.reducaoAtraso} onChange={(r) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ...r } })} />
         {(() => {
@@ -135,7 +150,7 @@ export default function Ajustes() {
               <div className="item"><b>Exemplo com {brl(base)} por pacote</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
               {exemploFaixas(regra, base).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{brl(f.valor)}</b></div>)}
             </div>
-          ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o horário e pelo menos um valor de redução para ver o exemplo.</p>;
+          ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o horário e adicione pelo menos uma faixa com valor para ver o exemplo.</p>;
         })()}
         <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Por motorista</h3>
         <p className="small muted">Por padrão, todos seguem a regra acima. Aqui dá para dar uma regra própria a um motorista ou isentá-lo.</p>
