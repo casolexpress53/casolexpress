@@ -42,7 +42,7 @@ export default function Romaneio() {
     for (const nome of prev.semCad) act.add('motoristas', { nome, tipo: 'pacote', valor: 0, ativo: true });   // valor 0 = usa o valor padrão de Ajustes
     setPrev({ ...analisar(brutas, getState(), emp, data), arquivo: prev.arquivo });
   };
-  const confirmar = () => { act.importar({ empresaId: emp, data, arquivo: prev.arquivo, paradas: prev.paradas }); setPrev(null); };
+  const confirmar = () => { act.importar({ empresaId: emp, data, arquivo: prev.arquivo, paradas: prev.paradas, atualizacoes: prev.atualizacoes }); setPrev(null); };
 
   const semMot = useMemo(() => {
     const m = {};
@@ -87,9 +87,11 @@ export default function Romaneio() {
           <div className="grid g4">
             <div><div className="k-v">{num(prev.pacotes)}</div><div className="k-s">pacotes únicos</div></div>
             <div><div className="k-v">{num(prev.paradas.length)}</div><div className="k-s">paradas (agrupadas por endereço)</div></div>
-            <div><div className="k-v">{num(prev.repetidos)}</div><div className="k-s">repetidos removidos</div></div>
+            <div><div className="k-v">{num(prev.jaExistiam || 0)}</div><div className="k-s">já estavam no sistema</div></div>
             <div><div className="k-v">{num(prev.atribuidas)}</div><div className="k-s">já com motorista</div></div>
           </div>
+          {(prev.entregasAtualizadas > 0 || prev.motoristasAtribuidos > 0) && <p className="small" style={{ marginTop: 12 }}><b>Pacotes que já estavam no sistema serão atualizados:</b> {num(prev.entregasAtualizadas)} pacote(s) passam a constar como entregues e {num(prev.motoristasAtribuidos)} parada(s) sem motorista recebem o entregador da planilha.</p>}
+          {!prev.paradas.length && !prev.atualizacoes?.length && <p className="small muted" style={{ marginTop: 12 }}>Nada novo nesta planilha: todos os pacotes já estavam no sistema e nada mudou.</p>}
           {prev.entreguesPlat > 0 && <p className="small" style={{ marginTop: 12 }}><b>{num(prev.entreguesPlat)} pacote(s) já constam como entregues na plataforma.</b> Eles entram como <b>entregues</b> (com o horário da entrega da planilha), e não como pendentes.</p>}
           {prev.semCad.length > 0 && (
             <div style={{ marginTop: 12 }}>
@@ -99,7 +101,7 @@ export default function Romaneio() {
             </div>
           )}
           <p className="small muted" style={{ marginTop: 12 }}>Colunas lidas: {Object.entries(prev.colunas || {}).filter(([k]) => k !== 'enderecoPorConteudo').map(([k, v]) => `${{ codigo: 'código', endereco: 'endereço', cidade: 'cidade', bairro: 'bairro', cliente: 'cliente', entregador: 'entregador', situacao: 'situação', horaEntrega: 'hora da entrega' }[k] || k} = “${v}”`).join(' · ')}.</p>
-          <div className="row" style={{ marginTop: 16 }}><button className="btn dark" onClick={confirmar}><Icon n="check" size={18} /> Importar romaneio</button><button className="btn" onClick={() => setPrev(null)}>Cancelar</button></div>
+          <div className="row" style={{ marginTop: 16 }}><button className="btn dark" onClick={confirmar}><Icon n="check" size={18} /> {prev.paradas.length ? 'Importar romaneio' : 'Atualizar o que já existe'}</button><button className="btn" onClick={() => setPrev(null)}>Cancelar</button></div>
         </div>
       )}
 

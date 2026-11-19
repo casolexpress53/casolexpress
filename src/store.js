@@ -112,10 +112,24 @@ export const act = {
     if (temServidor && modo === 'motorista') sync.rpc('motorista_desfazer', { p_parada: id }).catch((e) => falhaMotorista(e));
   },
 
-  importar: ({ empresaId, data, arquivo, paradas }) => setState((s) => {
+  /* Importa o relatório: cria o romaneio só se houver pacotes novos e atualiza as paradas que já existiam
+     (atribui motorista que faltava e dá baixa no que a plataforma já mostra como entregue). */
+  importar: ({ empresaId, data, arquivo, paradas, atualizacoes = [] }) => setState((s) => {
+    let ps = s.paradas;
+    const ordem = { motorista: 0, status: 1, dividir: 1 };
+    for (const op of [...atualizacoes].sort((a, b) => ordem[a.tipo] - ordem[b.tipo])) {
+      const p = ps.find((x) => x.id === op.paradaId); if (!p) continue;
+      if (op.tipo === 'motorista') ps = ps.map((x) => (x.id === p.id && !x.motoristaId ? { ...x, motoristaId: op.motoristaId } : x));
+      else if (op.tipo === 'status') ps = ps.map((x) => (x.id === p.id && x.status === 'pendente' ? { ...x, status: 'entregue', baixaEm: op.baixaEm } : x));
+      else if (op.tipo === 'dividir') {
+        const cods = new Set(op.codigos);
+        ps = [...ps.map((x) => (x.id === p.id ? { ...x, pacotes: x.pacotes.filter((c) => !cods.has(c)) } : x)), { ...p, id: uid(), pacotes: p.pacotes.filter((c) => cods.has(c)), status: 'entregue', baixaEm: op.baixaEm }];
+      }
+    }
+    if (!paradas.length) return { ...s, paradas: ps };
     const id = uid();
     const novas = paradas.map((p) => ({ id: uid(), romaneioId: id, status: 'pendente', baixaEm: null, ...p }));
-    return { ...s, romaneios: [...s.romaneios, { id, empresaId, data, arquivo, finalizado: false }], paradas: [...s.paradas, ...novas] };
+    return { ...s, romaneios: [...s.romaneios, { id, empresaId, data, arquivo, finalizado: false }], paradas: [...ps, ...novas] };
   }),
   excluirRomaneio: (id) => setState((s) => ({ ...s, romaneios: s.romaneios.filter((r) => r.id !== id), paradas: s.paradas.filter((p) => p.romaneioId !== id) })),
   distribuir: (cidade, motoristaId) => setState((s) => ({

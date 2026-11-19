@@ -76,21 +76,35 @@ export function analisar(linhas, S, empresaId, data) {
     const cab = Object.keys(linhas[0] || {}).slice(0, 12).join(', ');
     return { erro: `Não achei as colunas de ${!m.codigo ? 'código' : 'endereço'}. A planilha precisa ter uma coluna com o código do pacote e outra com o endereço. Colunas que encontrei: ${cab}${Object.keys(linhas[0] || {}).length > 12 ? '…' : ''}.` };
   }
-  const jaTem = new Set(S.paradas.filter((p) => { const r = S.romaneios.find((x) => x.id === p.romaneioId); return r && r.empresaId === empresaId && r.data === data; }).flatMap((p) => p.pacotes));
+  // pacotes que já estão no sistema (mesma empresa e dia): em vez de ignorar, atualizam a parada (entrega, motorista)
+  const existentes = new Map();
+  for (const p of S.paradas) {
+    const r = S.romaneios.find((x) => x.id === p.romaneioId);
+    if (r && r.empresaId === empresaId && r.data === data) for (const c of p.pacotes) existentes.set(c, p);
+  }
   const cidades = m.cidade ? cidadesCanonicas(linhas, m.cidade) : new Map();
   const porNome = new Map(S.motoristas.map((x) => [chaveNome(x.nome), x]));
-  const vistos = new Set(), grupos = new Map(), faltam = new Map();
-  let repetidos = 0, entreguesPlat = 0;
+  const vistos = new Set(), vistosEx = new Set(), grupos = new Map(), faltam = new Map();
+  const entNovas = new Map(), atribuir = new Map();   // paradaId -> [{cod, baixaEm}] / motoristaId
+  let repetidos = 0, entreguesPlat = 0, jaExistiam = 0;
   for (const l of linhas) {
     const cod = String(l[m.codigo] ?? '').trim(), end = String(l[m.endereco] ?? '').trim();
     if (!cod || !end) continue;
-    if (vistos.has(cod) || jaTem.has(cod)) { repetidos++; continue; }
-    vistos.add(cod);
-    const bruta = String(m.cidade ? l[m.cidade] : '').trim(), cidade = cidades.get(norm(bruta)) || bruta;
-    const entregue = m.situacao ? foiEntregue(l[m.situacao]) : false;
     const nomeEnt = m.entregador ? String(l[m.entregador] ?? '').trim() : '';
     const mo = nomeEnt ? porNome.get(chaveNome(nomeEnt)) : null;
     if (nomeEnt && !mo) faltam.set(chaveNome(nomeEnt), limparNome(nomeEnt));
+    const entregue = m.situacao ? foiEntregue(l[m.situacao]) : false;
+    const ex = existentes.get(cod);
+    if (ex) {
+      if (vistosEx.has(cod)) { repetidos++; continue; }
+      vistosEx.add(cod); jaExistiam++;
+      if (!ex.motoristaId && mo) atribuir.set(ex.id, mo.id);
+      if (entregue && ex.status === 'pendente') { const a = entNovas.get(ex.id) || []; a.push({ cod, baixaEm: instante(m.horaEntrega ? l[m.horaEntrega] : '', data) }); entNovas.set(ex.id, a); }
+      continue;
+    }
+    if (vistos.has(cod)) { repetidos++; continue; }
+    vistos.add(cod);
+    const bruta = String(m.cidade ? l[m.cidade] : '').trim(), cidade = cidades.get(norm(bruta)) || bruta;
     // mesmo endereço só junta se for o mesmo entregador e a mesma situação (entregues e pendentes ficam em paradas separadas)
     const key = `${norm(end)}|${norm(cidade)}|${entregue ? 'e' : 'p'}|${nomeEnt ? chaveNome(nomeEnt) : ''}`;
     let g = grupos.get(key);
@@ -105,9 +119,17 @@ export function analisar(linhas, S, empresaId, data) {
     g.pacotes.push(cod);
     if (entregue) entreguesPlat++;
   }
+  // operações sobre paradas que já existiam
+  const atualizacoes = []; let entregasAtualizadas = 0;
+  for (const [id, mid] of atribuir) atualizacoes.push({ tipo: 'motorista', paradaId: id, motoristaId: mid });
+  for (const [id, lista] of entNovas) {
+    const p = S.paradas.find((x) => x.id === id), baixaEm = lista.map((x) => x.baixaEm).sort().pop();
+    atualizacoes.push(lista.length >= p.pacotes.length ? { tipo: 'status', paradaId: id, baixaEm } : { tipo: 'dividir', paradaId: id, codigos: lista.map((x) => x.cod), baixaEm });
+    entregasAtualizadas += lista.length;
+  }
   const paradas = [...grupos.values()];
   return {
-    paradas, pacotes: vistos.size, repetidos, entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
+    paradas, pacotes: vistos.size, repetidos, jaExistiam, atualizacoes, entregasAtualizadas, motoristasAtribuidos: atribuir.size, entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
     semCad: [...faltam.values()], colunas: m,
   };
 }
