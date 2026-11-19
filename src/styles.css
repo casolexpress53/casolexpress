@@ -72,7 +72,13 @@ button { font: inherit; color: inherit; }
   font: 700 12px var(--f2); letter-spacing: 0.08em; text-align: center; padding: 6px 12px; border-radius: 99px; margin-bottom: 18px;
 }
 @media (max-width: 860px) {
-  .rail { top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; height: 64px; flex-direction: row; justify-content: space-around; padding: 0 8px; border-radius: 32px; }
+  html { -webkit-text-size-adjust: 100%; }
+  .inp, .sel, textarea { font-size: 16px; }   /* o iPhone dá zoom ao tocar em campos menores que 16px */
+  .rail { max-width: calc(100vw - 20px); overflow-x: auto; overflow-y: hidden; justify-content: flex-start; gap: 4px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail button { flex: none; }
+  .rail.aberto { overflow-x: hidden; overflow-y: auto; }
+  .rail { top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; height: 64px; flex-direction: row; padding: 0 8px; border-radius: 32px; }
   .rail .logo, .rail .sp { display: none; }
   .main, .main.menu-aberto { margin-left: 0; padding: 18px 14px 100px; }
   .rail.aberto { flex-direction: column; justify-content: flex-start; height: auto; max-height: calc(100vh - 28px); width: auto; border-radius: 28px; padding: 10px 12px; }

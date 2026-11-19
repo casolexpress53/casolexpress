@@ -78,9 +78,12 @@ function PrazosCidade({ S }) {
 }
 
 /* Funcionários cadastrados: só bater ponto ou operar o sistema (com as abas liberadas) */
+const lerAberto = (id) => { try { return localStorage.getItem(`casol_recolher_equipe_${id}`) === '1'; } catch { return false; } };   // padrão: oculto
+const gravarAberto = (id, v) => { try { localStorage.setItem(`casol_recolher_equipe_${id}`, v ? '1' : '0'); } catch { /* sem storage */ } };
 function PermissoesEquipe({ ir }) {
   const P = usePontoDono(`${hojeBR().slice(0, 8)}01`);
   const [msg, setMsg] = useState(null);
+  const [, setTick] = useState(0);
   async function salvar(c, patch) {
     setMsg(null);
     try { await P.salvarColab({ ...c, ...patch }); } catch (e) { setMsg(mensagemErro(e)); }
@@ -88,29 +91,56 @@ function PermissoesEquipe({ ir }) {
   if (P.carregando) return <p className="small muted">Carregando…</p>;
   if (P.erro) return <p className="l-err small" role="alert">Não consegui carregar os funcionários: {P.erro}</p>;
   if (!P.colaboradores.length) return <p className="small muted">Nenhum funcionário cadastrado ainda. Cadastre em <button className="btn sm" onClick={() => ir?.('equipe')}>Funcionários</button>.</p>;
+  const ativos = P.colaboradores.filter((c) => c.ativo);
   return (
-    <div className="list">
+    <div className="stack">
       {msg && <p className="l-err small" role="alert">{msg}</p>}
-      {P.colaboradores.filter((c) => c.ativo).map((c) => {
-        const op = c.permissao === 'operador', abas = c.abas || [];
-        return (
-          <div className="item" key={c.id} style={{ alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ flex: '1 1 180px' }}><b>{c.nome}</b>{c.funcao && <span className="muted small"> · {c.funcao}</span>}
-              <div className="small muted">{temServidor ? (c.vinculado ? 'Tem login' : 'Sem login ainda (crie em Funcionários)') : 'Demonstração'}</div></div>
-            <label className="f" style={{ flex: '1 1 220px' }}>O que pode fazer
-              <select className="sel" value={op ? 'operador' : 'ponto'} onChange={(e) => salvar(c, { permissao: e.target.value, abas: e.target.value === 'operador' && !abas.length ? ['romaneio', 'entregas'] : abas })}>
-                <option value="ponto">Só bater o ponto</option><option value="operador">Trabalhar no sistema (e bater o ponto)</option>
-              </select></label>
-            {op && (
-              <fieldset style={{ flex: '1 1 100%', border: 0, padding: 0, margin: 0 }}><legend className="small muted">Abas liberadas</legend>
-                <div className="stack">{ABAS_EQUIPE.map(([id, nome, desc]) => (
-                  <label className="row" key={id} style={{ gap: 8 }}><input type="checkbox" checked={abas.includes(id)} onChange={(e) => salvar(c, { abas: e.target.checked ? [...abas, id] : abas.filter((x) => x !== id) })} /> <span><b>{nome}</b> <span className="small muted">— {desc}</span></span></label>
-                ))}</div>
-              </fieldset>
-            )}
-          </div>
-        );
-      })}
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="btn sm" onClick={() => { ativos.forEach((c) => gravarAberto(c.id, true)); setTick((t) => t + 1); }}>Mostrar as funções de todos</button>
+        <button type="button" className="btn sm" onClick={() => { ativos.forEach((c) => gravarAberto(c.id, false)); setTick((t) => t + 1); }}>Ocultar as funções de todos</button>
+      </div>
+      <div className="list">
+        {ativos.map((c) => {
+          const op = c.permissao === 'operador', abas = c.abas || [], aberto = lerAberto(c.id);
+          return (
+            <div className="item" key={c.id} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+              <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                  <b>{c.nome}</b>{c.funcao && <span className="muted small"> · {c.funcao}</span>}
+                  <div className="small muted">{temServidor ? (c.vinculado ? 'Tem login' : 'Sem login ainda (crie em Funcionários)') : 'Demonstração'} · {op ? `Trabalha no sistema (${abas.length} função(ões) liberada(s))` : 'Só bate o ponto'}</div>
+                </div>
+                <button type="button" className="rec-btn" aria-expanded={aberto} aria-label={`${aberto ? 'Ocultar' : 'Mostrar'} as funções de ${c.nome}`} onClick={() => { gravarAberto(c.id, !aberto); setTick((t) => t + 1); }}>{aberto ? 'Ocultar funções' : 'Mostrar funções'}</button>
+              </div>
+              {aberto && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label className="f" style={{ maxWidth: 420, flex: 'none' }}>O que pode fazer
+                    <select className="sel" value={op ? 'operador' : 'ponto'} onChange={(e) => salvar(c, { permissao: e.target.value, abas: e.target.value === 'operador' && !abas.length ? ['romaneio', 'entregas'] : abas })}>
+                      <option value="ponto">Só bater o ponto</option><option value="operador">Trabalhar no sistema (e bater o ponto)</option>
+                    </select></label>
+                  {op && (
+                    <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                      <legend className="small muted" style={{ marginBottom: 8 }}>Funções liberadas</legend>
+                      <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <button type="button" className="btn sm" onClick={() => salvar(c, { abas: ABAS_EQUIPE.map((x) => x[0]) })}>Marcar todas</button>
+                        <button type="button" className="btn sm" onClick={() => salvar(c, { abas: [] })}>Limpar</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 10 }}>
+                        {ABAS_EQUIPE.map(([id, nome, desc]) => (
+                          <label key={id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 10px', alignItems: 'start', alignContent: 'start', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 14, cursor: 'pointer', background: abas.includes(id) ? 'var(--surface2)' : 'transparent' }}>
+                            <input type="checkbox" style={{ marginTop: 3 }} checked={abas.includes(id)} onChange={(e) => salvar(c, { abas: e.target.checked ? [...abas, id] : abas.filter((x) => x !== id) })} />
+                            <b>{nome}</b><span />
+                            <span className="small muted">{desc}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -57,6 +57,7 @@ export default function App() {
       try { setSessao(JSON.parse(sessionStorage.getItem(K_SESSAO)) || null); } catch { setSessao(null); }
     })();
   }, []);
+  useEffect(() => { document.querySelector('.rail button.on')?.scrollIntoView({ inline: 'center', block: 'nearest' }); }, [aba, menu]);
   useEffect(() => { try { localStorage.setItem(K_ABA, aba); } catch { /* sem storage */ } }, [aba]);
 
   /* modo servidor: ao entrar, carrega do Supabase o que este papel pode ver */
