@@ -53,11 +53,25 @@ export function shiftMes(s, n) {
   const alvo = new Date(y, m, 1);
   return iso(new Date(alvo.getFullYear(), alvo.getMonth(), Math.min(d.getDate(), diasNoMes(alvo.getFullYear(), alvo.getMonth()))));
 }
+/* Dias de fechamento das quinzenas (Ajustes). Padrão: dia 15 e o último dia do mês (1–15 e 16–fim).
+   Ex.: fechando nos dias 10 e 25 os períodos são 26–10 e 11–25. c2 = 31 significa "último dia do mês". */
+let FECH = { c1: 15, c2: 31 };
+export function definirFechamento(f) {
+  const c1 = Number.isInteger(f?.c1) && f.c1 >= 1 && f.c1 <= 27 ? f.c1 : 15;
+  const c2 = Number.isInteger(f?.c2) && f.c2 > c1 && f.c2 <= 31 ? f.c2 : 31;
+  FECH = { c1, c2 };
+}
+export const fechamentoAtual = () => FECH;
 export function quinzena(ref) {
-  const d = parse(ref), y = d.getFullYear(), m = d.getMonth();
-  return d.getDate() <= 15
-    ? { ini: iso(new Date(y, m, 1)), fim: iso(new Date(y, m, 15)) }
-    : { ini: iso(new Date(y, m, 16)), fim: iso(new Date(y, m, diasNoMes(y, m))) };
+  const d = parse(ref), y = d.getFullYear(), m = d.getMonth(), n = d.getDate();
+  const C1 = Math.min(FECH.c1, diasNoMes(y, m)), C2 = Math.min(FECH.c2, diasNoMes(y, m));
+  if (n <= C1) {
+    const pm = new Date(y, m - 1, 1), pC2 = Math.min(FECH.c2, diasNoMes(pm.getFullYear(), pm.getMonth()));
+    return { ini: addDias(iso(new Date(y, m - 1, pC2)), 1), fim: iso(new Date(y, m, C1)) };
+  }
+  if (n <= C2) return { ini: iso(new Date(y, m, C1 + 1)), fim: iso(new Date(y, m, C2)) };
+  const nm = new Date(y, m + 1, 1);
+  return { ini: iso(new Date(y, m, C2 + 1)), fim: iso(new Date(y, m + 1, Math.min(FECH.c1, diasNoMes(nm.getFullYear(), nm.getMonth())))) };
 }
 export const quinzenaAnterior = (q) => quinzena(addDias(q.ini, -1));
 export const quinzenaSeguinte = (q) => quinzena(addDias(q.fim, 1));

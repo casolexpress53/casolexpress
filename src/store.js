@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { temServidor } from './auth.js';
-import { uid } from './lib.js';
+import { definirFechamento, uid } from './lib.js';
 import * as sync from './sync.js';
 
 /*
@@ -27,24 +27,26 @@ function carregar() {
 
 /* Modo servidor: nada de dados em localStorage (dado pessoal não fica no navegador); a fonte da verdade é o Supabase. */
 let state = temServidor ? vazio() : carregar();
-let modo = null;   // 'dono' | 'motorista' | 'colaborador' (só no modo servidor)
+definirFechamento(state.ajustes?.fechamento);
+let modo = null;   // 'dono' | 'operador' | 'motorista' | 'colaborador' (só no modo servidor)
 const subs = new Set();
 
 export const getState = () => state;
 export function setState(fn) {
   const prev = state;
   state = fn(state);
+  definirFechamento(state.ajustes?.fechamento);
   if (!temServidor) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('Não foi possível salvar no navegador', e); } }
-  else if (modo === 'dono') sync.registrar(prev, state);
+  else if (modo === 'dono' || modo === 'operador') sync.registrar(prev, state);
   subs.forEach((f) => f());
 }
 /* Troca o estado inteiro (carga do servidor) SEM gerar gravação. */
-function substituir(next) { state = { ...vazio(), ...next, carregado: true }; subs.forEach((f) => f()); }
+function substituir(next) { state = { ...vazio(), ...next, carregado: true }; definirFechamento(state.ajustes?.fechamento); subs.forEach((f) => f()); }
 
 /* ----- modo servidor: carga, atualização periódica e encerramento ----- */
 let relogio = null, limparRelogio = null, geracao = 0;
 async function carga(papel) {
-  if (papel === 'dono') return (await sync.carregarTudo(true)).dados;
+  if (papel === 'dono' || papel === 'operador') return (await sync.carregarTudo(true)).dados;
   if (papel === 'motorista') return sync.carregarMotorista();
   return {};
 }
@@ -55,12 +57,12 @@ export async function iniciarServidor(papel) {
   const dados = await carga(papel);
   if (minha !== geracao) return { motoristaId: null, descartada: true };
   substituir(dados);
-  if (papel === 'dono') { sync.ligar(); sync.definirAoConflito(async () => { const r = await sync.carregarTudo(true); substituir(r.dados); }); }
-  if (papel === 'dono' || papel === 'motorista') {
+  if (papel === 'dono' || papel === 'operador') { sync.ligar(); sync.definirAoConflito(async () => { const r = await sync.carregarTudo(true); substituir(r.dados); }); }
+  if (papel === 'dono' || papel === 'operador' || papel === 'motorista') {
     const atualizar = async () => {
       if (document.hidden || sync.temPendencia() || modo !== papel || minha !== geracao) return;
       try {
-        if (papel === 'dono') {
+        if (papel === 'dono' || papel === 'operador') {
           const r = await sync.carregarTudo(false);
           if (r.descartada || sync.temPendencia() || modo !== papel || minha !== geracao) return;
           if (r.externo) { substituir(r.dados); sync.avisar({ tipo: 'info', texto: 'Outra pessoa atualizou os dados. A tela já mostra a versão mais recente.' }); }

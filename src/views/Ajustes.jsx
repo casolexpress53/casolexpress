@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
 import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
-import { brl, norm } from '../lib.js';
+import { addDias, brl, dataBR, fechamentoAtual, norm, quinzena, hoje } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
 import { Icon, Money } from '../ui.jsx';
 import { H2 } from '../components/Recolher.jsx';
+import { ABAS_EQUIPE } from '../equipe.js';
+import { mensagemErro } from '../ponto-lib.js';
+import { usePontoDono } from '../ponto.js';
 
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
@@ -74,13 +77,74 @@ function PrazosCidade({ S }) {
   );
 }
 
+/* Funcionários cadastrados: só bater ponto ou operar o sistema (com as abas liberadas) */
+function PermissoesEquipe({ ir }) {
+  const P = usePontoDono();
+  const [msg, setMsg] = useState(null);
+  async function salvar(c, patch) {
+    setMsg(null);
+    try { await P.salvarColab({ ...c, ...patch }); } catch (e) { setMsg(mensagemErro(e)); }
+  }
+  if (P.carregando) return <p className="small muted">Carregando…</p>;
+  if (!P.colaboradores.length) return <p className="small muted">Nenhum funcionário cadastrado ainda. Cadastre em <button className="btn sm" onClick={() => ir?.('equipe')}>Funcionários</button>.</p>;
+  return (
+    <div className="list">
+      {msg && <p className="l-err small" role="alert">{msg}</p>}
+      {P.colaboradores.map((c) => {
+        const op = c.permissao === 'operador', abas = c.abas || [];
+        return (
+          <div className="item" key={c.id} style={{ alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ flex: '1 1 180px' }}><b>{c.nome}</b>{c.funcao && <span className="muted small"> · {c.funcao}</span>}
+              <div className="small muted">{temServidor ? (c.vinculado ? 'Tem login' : 'Sem login ainda (crie em Funcionários)') : 'Demonstração'}</div></div>
+            <label className="f" style={{ flex: '1 1 220px' }}>O que pode fazer
+              <select className="sel" value={op ? 'operador' : 'ponto'} onChange={(e) => salvar(c, { permissao: e.target.value, abas: e.target.value === 'operador' && !abas.length ? ['romaneio', 'entregas'] : abas })}>
+                <option value="ponto">Só bater o ponto</option><option value="operador">Trabalhar no sistema (e bater o ponto)</option>
+              </select></label>
+            {op && (
+              <fieldset style={{ flex: '1 1 100%', border: 0, padding: 0, margin: 0 }}><legend className="small muted">Abas liberadas</legend>
+                <div className="stack">{ABAS_EQUIPE.map(([id, nome, desc]) => (
+                  <label className="row" key={id} style={{ gap: 8 }}><input type="checkbox" checked={abas.includes(id)} onChange={(e) => salvar(c, { abas: e.target.checked ? [...abas, id] : abas.filter((x) => x !== id) })} /> <span><b>{nome}</b> <span className="small muted">— {desc}</span></span></label>
+                ))}</div>
+              </fieldset>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* dias de fechamento das quinzenas do cliente */
+function Fechamento({ S }) {
+  const f = S.ajustes.fechamento || {};
+  const { c1, c2 } = fechamentoAtual();
+  const set = (patch) => act.ajustes({ fechamento: { c1, c2, ...patch } });
+  const q1 = quinzena(hoje()), q0 = quinzena(addDias(q1.ini, -1)), q2 = quinzena(addDias(q1.fim, 1));
+  return (
+    <div className="stack">
+      <div className="form">
+        <label className="f">1º fechamento (dia do mês)
+          <select className="sel" value={c1} onChange={(e) => { const v = Number(e.target.value); set({ c1: v, c2: c2 > v ? c2 : 31 }); }}>
+            {Array.from({ length: 27 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>dia {d}</option>)}
+          </select></label>
+        <label className="f">2º fechamento (dia do mês)
+          <select className="sel" value={c2} onChange={(e) => set({ c2: Number(e.target.value) })}>
+            {Array.from({ length: 30 - c1 }, (_, i) => c1 + 1 + i).filter((d) => d <= 28).map((d) => <option key={d} value={d}>dia {d}</option>)}
+            <option value={31}>último dia do mês</option>
+          </select></label>
+      </div>
+      <p className="small muted">Períodos neste momento: <b>{dataBR(q0.ini)} a {dataBR(q0.fim)}</b> (anterior), <b>{dataBR(q1.ini)} a {dataBR(q1.fim)}</b> (atual), <b>{dataBR(q2.ini)} a {dataBR(q2.fim)}</b> (próximo). Vale para a Comissão, o extrato do motorista e os fechamentos em PDF. Fechamentos já aprovados continuam como estão.{f.c1 ? '' : ' (padrão: dia 15 e último dia do mês)'}</p>
+    </div>
+  );
+}
+
 /* campo de meta: vazio = sem meta */
 const Meta = ({ m, valor, onChange }) => (
   <input className="inp" type="number" min="0" max={m.un === '%' ? 100 : undefined} step="0.1" inputMode="decimal" placeholder="sem meta" value={valor ?? ''} aria-label={m.rotulo}
     onChange={(e) => onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} />
 );
 
-export default function Ajustes() {
+export default function Ajustes({ ir }) {
   const S = useStore();
   const [m, setM] = useState({ nome: '', tipo: 'pacote', valor: 0 });
   const [e, setE] = useState({ nome: '', tarifa: 0, prazoDias: 1 });
@@ -173,9 +237,21 @@ export default function Ajustes() {
       </div>
 
       <div className="card">
+        <H2 id="equipe-permissoes">Equipe: o que cada funcionário pode fazer</H2>
+        <p className="sub">Quem foi cadastrado em Funcionários aparece aqui. Escolha se a pessoa <b>só bate o ponto</b> ou <b>trabalha no sistema</b>, e quais abas ela enxerga. Caixa, comissão, ajustes e painel financeiro ficam sempre só com você. A pessoa precisa ter login (criado em Funcionários) e, ao mudar a permissão, entrar de novo para valer.</p>
+        <PermissoesEquipe ir={ir} />
+      </div>
+
+      <div className="card">
         <H2 id="prazo-cidade">Prazo de entrega por cidade</H2>
         <p className="sub">Como na planilha de controle: <b>D + 0</b> vence no dia do carregamento, <b>D + 1</b> no dia seguinte, e assim por diante. É isso que define “vence hoje”, “no prazo” e “fora do prazo” no SLA. Cidade sem prazo conta como D + 0.</p>
         <PrazosCidade S={S} />
+      </div>
+
+      <div className="card">
+        <H2 id="fechamento">Fechamento das quinzenas</H2>
+        <p className="sub">Em que dias o cliente fecha o pagamento dos motoristas. Padrão: dia 15 e último dia do mês. Se ele fecha, por exemplo, nos dias 10 e 25, os períodos viram 26 a 10 e 11 a 25.</p>
+        <Fechamento S={S} />
       </div>
 
       <div className="card">

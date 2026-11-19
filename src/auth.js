@@ -23,9 +23,9 @@ export async function entrar(email, senha) {
   const c = await sb();
   const { data, error } = await c.auth.signInWithPassword({ email, password: senha });
   if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
-  const { data: perfil, error: e2 } = await c.from('perfis').select('papel').eq('id', data.user.id).maybeSingle();
+  const { data: perfil, error: e2 } = await c.from('perfis').select('papel, abas').eq('id', data.user.id).maybeSingle();
   if (e2 || !perfil) { await c.auth.signOut(); throw new Error('Este usuário ainda não tem acesso liberado. Fale com o administrador.'); }
-  return { papel: perfil.papel, email: data.user.email };
+  return { papel: perfil.papel, abas: perfil.abas || [], email: data.user.email };
 }
 
 export async function sessaoAtual() {
@@ -33,8 +33,8 @@ export async function sessaoAtual() {
   const c = await sb();
   const { data } = await c.auth.getSession();
   if (!data.session) return null;
-  const { data: perfil } = await c.from('perfis').select('papel').eq('id', data.session.user.id).maybeSingle();
-  return perfil ? { papel: perfil.papel, email: data.session.user.email } : null;
+  const { data: perfil } = await c.from('perfis').select('papel, abas').eq('id', data.session.user.id).maybeSingle();
+  return perfil ? { papel: perfil.papel, abas: perfil.abas || [], email: data.session.user.email } : null;
 }
 
 export async function sair() {

@@ -4,6 +4,7 @@ import Login from './Login.jsx';
 import { encerrarServidor, iniciarServidor, useStore } from './store.js';
 import { aguardarGravacao, limparAviso, temPendencia, useAviso, useSyncStatus } from './sync.js';
 import { logoRedonda, useTema } from './theme.js';
+import { ids_ABAS } from './equipe.js';
 import { Icon } from './ui.jsx';
 
 const Painel = lazy(() => import('./views/Painel.jsx'));
@@ -34,6 +35,7 @@ const NAV = [
 ];
 const K_SESSAO = 'casol_sessao';
 const K_ABA = 'casol_aba';
+const K_MENU = 'casol_menu';
 
 export default function App() {
   const [tema, alternar] = useTema();
@@ -43,6 +45,8 @@ export default function App() {
   const [erroCarga, setErroCarga] = useState('');
   const [tentativa, setTentativa] = useState(0);
   const [sessao, setSessao] = useState(undefined);
+  const [menu, setMenu] = useState(() => { try { return localStorage.getItem(K_MENU) === '1'; } catch { return false; } });
+  const alternarMenu = () => setMenu((m) => { try { localStorage.setItem(K_MENU, m ? '0' : '1'); } catch { /* sem storage */ } return !m; });
   const [aba, setAba] = useState(() => { try { return localStorage.getItem(K_ABA) || 'painel'; } catch { return 'painel'; } });
 
   useEffect(() => {
@@ -135,21 +139,28 @@ export default function App() {
     );
   }
 
-  const [, titulo, sub, , Tela] = NAV.find((n) => n[0] === aba) || NAV[0];
+  /* quem só opera vê as abas liberadas pelo dono, mais o próprio ponto */
+  const nav = sessao.papel === 'operador'
+    ? [...NAV.filter((n) => ids_ABAS.includes(n[0]) && (sessao.abas || []).includes(n[0])), ['meuponto', 'Meu ponto', 'Bata o seu ponto e veja o seu mês', 'clock', PontoColab]]
+    : NAV;
+  const [, titulo, sub, , Tela] = nav.find((n) => n[0] === aba) || nav[0];
   return (
     <>
       {Aviso}
-      <nav className="rail" aria-label="Menu principal">
+      <nav className={`rail${menu ? ' aberto' : ''}`} aria-label="Menu principal">
         <img className="logo" src={logoRedonda(tema)} alt="Casol Express" />
-        {NAV.map(([id, nome, , icone]) => (
-          <button key={id} className={aba === id ? 'on' : ''} onClick={() => setAba(id)} title={nome} aria-label={nome} aria-current={aba === id ? 'page' : undefined}>
-            <Icon n={icone} />
+        <button onClick={alternarMenu} title={menu ? 'Fechar o menu' : 'Abrir o menu com os nomes'} aria-label={menu ? 'Fechar o menu' : 'Abrir o menu com os nomes'} aria-expanded={menu}>
+          <Icon n={menu ? 'x' : 'menu'} />{menu && <span className="rt"><b>Fechar menu</b></span>}
+        </button>
+        {nav.map(([id, nome, legenda, icone]) => (
+          <button key={id} className={(nav.find((n) => n[0] === aba) || nav[0])[0] === id ? 'on' : ''} onClick={() => setAba(id)} title={`${nome} — ${legenda}`} aria-label={nome} aria-current={(nav.find((n) => n[0] === aba) || nav[0])[0] === id ? 'page' : undefined}>
+            <Icon n={icone} />{menu && <span className="rt"><b>{nome}</b><small>{legenda}</small></span>}
           </button>
         ))}
         <span className="sp" />
-        <button onClick={saiu} title="Sair" aria-label="Sair"><Icon n="logout" /></button>
+        <button onClick={saiu} title="Sair" aria-label="Sair"><Icon n="logout" />{menu && <span className="rt"><b>Sair</b></span>}</button>
       </nav>
-      <main className="main">
+      <main className={`main${menu ? ' menu-aberto' : ''}`}>
         {S.demo && <div className="demo-strip">DADOS FICTÍCIOS DE DEMONSTRAÇÃO · NADA AQUI É OPERAÇÃO REAL</div>}
         <header className="head">
           <div><h1>{titulo}</h1><p>{sub}</p></div>
