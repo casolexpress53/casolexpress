@@ -39,7 +39,7 @@ export default function Painel({ ir }) {
   const prev30 = saldoPrevisto(S, addDias(h, 30));
   const saidas30 = fluxoPeriodo(S, addDias(h, -30), h).saidas;
   const folego = saidas30 > 0 ? Math.floor(hoje0 / (saidas30 / 30)) : null;
-  const meta = S.ajustes.meta;
+  const meta = S.ajustes.meta, metaPct = S.ajustes.metaPct || 0;
   const mes = metricas(S, { ...periodo('mes'), ...f });
   const dias = Array.from({ length: 14 }, (_, i) => addDias(h, i - 13));
   const topo = Math.max(...dias.map((d) => dias14[d] || 0), 1);
@@ -119,10 +119,20 @@ export default function Painel({ ir }) {
         </div>
         <div className="card" style={{ '--i': 9 }}>
           <H2>Meta do mês</H2>
-          {meta > 0 ? (<>
-            <p className="sub">{num(mes.entregues)} de {num(meta)} pacotes · dia {Number(h.slice(8))}</p>
-            <div className="prog"><i style={{ width: `${Math.min((mes.entregues / meta) * 100, 100)}%` }} /></div>
-            <p className="small muted">{pct(Math.min(mes.entregues / meta, 9.99))} da meta. Defina outra em Ajustes.</p>
+          {meta > 0 || metaPct > 0 ? (<>
+            {meta > 0 && (<>
+              <p className="sub">{num(mes.entregues)} de {num(meta)} pacotes · dia {Number(h.slice(8))}</p>
+              <div className="prog"><i style={{ width: `${Math.min((mes.entregues / meta) * 100, 100)}%` }} /></div>
+              <p className="small muted">{pct(Math.min(mes.entregues / meta, 9.99))} da meta de pacotes.</p>
+            </>)}
+            {metaPct > 0 && (() => {
+              const tot = mes.entregues + mes.ocorrencias + mes.pendentes, real = tot ? mes.entregues / tot : 0, falta = Math.max(Math.ceil(tot * metaPct / 100) - mes.entregues, 0);
+              return (<>
+                <p className="sub" style={meta > 0 ? { marginTop: 12 } : undefined}>{pct(real)} entregues de {num(tot)} pacotes do mês · meta {metaPct.toLocaleString('pt-BR')}%</p>
+                <div className="prog"><i style={{ width: `${Math.min(metaPct > 0 ? (real * 100 / metaPct) * 100 : 0, 100)}%` }} /></div>
+                <p className="small muted">{tot === 0 ? 'Sem pacotes no mês ainda.' : falta ? `Faltam ${num(falta)} pacotes entregues para bater a meta.` : 'Meta batida.'} Defina outra em Ajustes.</p>
+              </>);
+            })()}
           </>) : (<><p className="sub">Defina uma meta de pacotes para acompanhar o ritmo do mês.</p><button className="btn" onClick={() => ir('ajustes')}>Definir a meta</button></>)}
         </div>
       </div>

@@ -13,6 +13,7 @@ const COL = [
   ['endereco', /(endereco|address|logradouro|\brua\b)/],
   ['cliente', /(cliente|destinat|receiver|nome)/],
   ['situacao', /(marca de assinatura|situacao|status)/],
+  ['carregadoEm', /(tempo de entrega|horario de (criacao|carregamento)|carregamento)/],
   ['horaEntrega', /(horario da entrega|data da entrega|entregue em|delivered)/],
 ];
 const INICIO_ENDERECO = /^(rua|avenida|rod|rodovia|estrada|estr|travessa|tv|alameda|al|praca|pca|linha|vila|sitio|chacara|loteamento|servidao|beco|largo)\b/;
@@ -66,7 +67,7 @@ function instante(v, dataRota) {
   if (typeof v === 'number' && v > 30000) return new Date(Math.round((v - 25569) * 864e5)).toISOString();
   const m = String(v ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?/);
   if (m) return new Date(`${m[1]}T${m[2]}:${m[3] || '00'}-03:00`).toISOString();
-  return new Date(`${dataRota}T12:00:00-03:00`).toISOString();
+  return dataRota ? new Date(`${dataRota}T12:00:00-03:00`).toISOString() : null;
 }
 
 export function analisar(linhas, S, empresaId, data) {
@@ -97,6 +98,7 @@ export function analisar(linhas, S, empresaId, data) {
       const bairro = m.bairro ? String(l[m.bairro]).trim() : '';
       g = { endereco: end, bairro: /^[.\-\s]*$/.test(bairro) ? '' : bairro, cidade, cliente: m.cliente ? String(l[m.cliente]).trim() : '', pacotes: [], motoristaId: null, gps: null };
       if (entregue) { g.status = 'entregue'; g.baixaEm = instante(m.horaEntrega ? l[m.horaEntrega] : '', data); }
+      if (m.carregadoEm) { const c = instante(l[m.carregadoEm], ''); if (c) g.carregadoEm = c; }
       if (mo) g.motoristaId = mo.id;
       grupos.set(key, g);
     }

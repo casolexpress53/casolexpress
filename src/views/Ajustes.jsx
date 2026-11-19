@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
 import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
-import { brl } from '../lib.js';
+import { brl, norm } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
 import { Icon, Money } from '../ui.jsx';
@@ -35,6 +35,41 @@ function CamposAtraso({ r = {}, onChange }) {
       </div>
       <div><button type="button" className="btn" onClick={() => set({ faixas: [...faixas, { apos: 1, un: 'min', valor: 0, repetir: false }] })}>+ Adicionar faixa de atraso</button></div>
       <p className="small muted">Minutos e horas contam depois do horário limite. “Dias” conta dias de calendário depois do dia da rota (entregou no dia seguinte = 1 dia). As reduções das faixas atingidas se somam.</p>
+    </div>
+  );
+}
+
+/* tabela de prazo por cidade (D + N): cidades que já apareceram nos romaneios + importação da aba "Regiões" da planilha de controle */
+function PrazosCidade({ S }) {
+  const tab = S.ajustes.prazosCidade || {};
+  const [msg, setMsg] = useState('');
+  const cidades = [...new Map(S.paradas.filter((p) => p.cidade).map((p) => [norm(p.cidade), p.cidade])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const set = (k, d) => act.ajustes({ prazosCidade: { ...tab, [k]: d } });
+  async function importar(file) {
+    if (!file) return; setMsg('');
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(await file.arrayBuffer());
+      const nome = wb.SheetNames.find((n) => norm(n) === 'regioes');
+      if (!nome) return setMsg('Não achei a aba "Regiões" nesse arquivo.');
+      const novo = { ...tab }; let n = 0;
+      for (const r of XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, defval: '' }).slice(1)) for (const [a, b] of [[0, 1], [2, 3]]) {
+        const d = String(r[b]).match(/D\s*\+\s*(\d+)/i);
+        if (r[a] && d) { novo[norm(String(r[a]))] = Number(d[1]); n++; }
+      }
+      act.ajustes({ prazosCidade: novo }); setMsg(`${n} cidades importadas.`);
+    } catch { setMsg('Não consegui ler esse arquivo.'); }
+  }
+  return (
+    <div className="stack">
+      <label className="btn sm" style={{ alignSelf: 'start' }}>Importar da planilha de controle (aba Regiões)<input type="file" accept=".xlsx,.xls" hidden onChange={(e) => { importar(e.target.files[0]); e.target.value = ''; }} /></label>
+      {msg && <p className="small muted" role="status">{msg}</p>}
+      {cidades.length === 0 ? <p className="small muted">As cidades aparecem aqui depois que você importar um romaneio.</p> : (
+        <div className="list">{cidades.map(([k, nome]) => (
+          <div className="item" key={k}><span>{nome}</span>
+            <label className="row" style={{ gap: 6 }}>D +<input className="inp" style={{ width: 70 }} type="number" min="0" max="30" value={tab[k] ?? 0} onChange={(e) => set(k, Math.max(0, Math.round(Number(e.target.value) || 0)))} aria-label={`Prazo de ${nome}`} /></label>
+          </div>))}
+        </div>)}
     </div>
   );
 }
@@ -138,6 +173,12 @@ export default function Ajustes() {
       </div>
 
       <div className="card">
+        <H2 id="prazo-cidade">Prazo de entrega por cidade</H2>
+        <p className="sub">Como na planilha de controle: <b>D + 0</b> vence no dia do carregamento, <b>D + 1</b> no dia seguinte, e assim por diante. É isso que define “vence hoje”, “no prazo” e “fora do prazo” no SLA. Cidade sem prazo conta como D + 0.</p>
+        <PrazosCidade S={S} />
+      </div>
+
+      <div className="card">
         <H2 id="reducao-atraso">Redução por atraso na entrega</H2>
         <p className="sub">Se o motorista entregar depois do horário combinado, o valor de <b>cada pacote</b> é reduzido. Você define o horário limite do <b>dia da rota</b> e as faixas: depois de quantos minutos, horas ou dias, ou a cada quanto tempo, e quanto reduz. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, linha por linha.</p>
         <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar a redução por atraso para todos os motoristas</b></label>
@@ -177,8 +218,9 @@ export default function Ajustes() {
       <div className="grid g2">
         <div className="card">
           <H2>Meta do mês</H2>
-          <p className="sub">Meta de pacotes entregues por mês. Vale para todos os meses até você mudar.</p>
+          <p className="sub">Use uma ou as duas: uma quantidade de pacotes entregues e/ou um percentual sobre <b>todos os pacotes do mês</b> (entregues, pendentes e com ocorrência). Vale para todos os meses até você mudar.</p>
           <label className="f" style={{ maxWidth: 220 }}>Pacotes por mês<input className="inp" type="number" min="0" value={S.ajustes.meta || ''} onChange={(ev) => act.ajustes({ meta: Math.max(0, Number(ev.target.value) || 0) })} /></label>
+          <label className="f" style={{ maxWidth: 220, marginTop: 10 }}>% dos pacotes do mês<input className="inp" type="number" min="0" max="100" step="0.1" inputMode="decimal" placeholder="ex.: 95" value={S.ajustes.metaPct || ''} onChange={(ev) => act.ajustes({ metaPct: Math.min(100, Math.max(0, Number(ev.target.value) || 0)) })} /></label>
         </div>
         <div className="card">
           <H2>Categorias do caixa</H2>
