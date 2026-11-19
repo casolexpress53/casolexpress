@@ -20,7 +20,7 @@ function posicao() {
 
 /* Visão do celular. Usada pelo motorista (modo "motorista") e pelo dono em "Ver como". */
 /* Motorista envia a nota fiscal (foto, PDF ou XML) para o escritório e acompanha se foi vista */
-function MinhasNotas({ m }) {
+function MinhasNotas({ m, previa }) {
   const { notas, carregando, erro, recarregar } = useNotas();
   const [f, setF] = useState({ numero: '', obs: '' });
   const [arq, setArq] = useState(null);
@@ -38,6 +38,12 @@ function MinhasNotas({ m }) {
     setBusy(false);
   }
   async function apagar(n) { if (!window.confirm('Apagar esta nota enviada?')) return; try { await apagarNota(n); recarregar(); } catch (er) { setMsg({ ok: false, t: er.message }); } }
+  if (previa) return (
+    <div className="card" style={{ padding: 16 }}>
+      <b>Nota fiscal</b>
+      <p className="small muted">Na tela do motorista (com o login dele) aparece aqui o envio: ele escolhe a foto, o PDF ou o XML da nota e manda para o escritório. As notas recebidas ficam na aba <b>Notas fiscais</b> do menu, e o painel avisa quando chega uma nova.</p>
+    </div>
+  );
   return (
     <div className="stack">
       <p className="small muted">Envie a nota fiscal da entrega ou do abastecimento para o escritório. Aceita foto, PDF ou XML (até 10 MB).</p>
@@ -177,9 +183,10 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
       )}
       <div className="phone">
         <div className="row between"><div><p className="k-l">Olá,</p><b style={{ font: 'italic 800 22px var(--f1)', textTransform: 'uppercase' }}>{m.nome}</b></div></div>
-        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA']]} /></div>
+        <div style={{ margin: '14px 0' }}><Chips valor={aba} onChange={setAba} opcoes={modo === 'motorista' && temServidor ? [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']] : [['rota', 'Minha rota'], ['extrato', 'Meu extrato'], ['metas', 'Meu SLA'], ['notas', 'Notas fiscais']]} /></div>
 
         {aba === 'rota' ? (<>
+          {modo === 'motorista' && temServidor && <button className="btn" style={{ marginBottom: 12 }} onClick={() => setAba('notas')}><Icon n="upload" size={18} /> Enviar nota fiscal</button>}
           <p><b>{num(dados.entPac)}</b> de {num(dados.totalPac)} pacotes entregues</p>
           <div className="prog"><i style={{ width: `${dados.totalPac ? (dados.entPac / dados.totalPac) * 100 : 0}%` }} /></div>
           <p className="small muted">{dados.pend.length} parada(s) faltam · {dados.feitas.length} baixada(s) hoje</p>
@@ -214,7 +221,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
           )}
           <p className="small muted" style={{ marginTop: 18 }}>Ao dar baixa, a localização do celular é guardada junto como posição de apoio (se você permitir).</p>
         </>) : aba === 'notas' ? (
-          <MinhasNotas m={m} />
+          <MinhasNotas m={m} previa={!(modo === 'motorista' && temServidor)} />
         ) : aba === 'metas' ? (
           <div className="stack">
             <MeuReporte m={m} S={S} />
