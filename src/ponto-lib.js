@@ -108,3 +108,15 @@ export function mensagemErro(e) {
   const k = Object.keys(MSG).find((c) => t.includes(c));
   return k ? MSG[k] : t || 'Não foi possível concluir. Tente de novo.';
 }
+
+/* Procura um endereço digitado e devolve até 5 opções com coordenadas (OpenStreetMap/Nominatim, só no Brasil).
+   Só o endereço digitado é enviado. A precisão varia: confira no mapa antes de salvar. */
+export async function buscarEndereco(txt) {
+  const q = String(txt || '').trim();
+  if (q.length < 6) throw new Error('Digite o endereço com rua, número e cidade.');
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=br&accept-language=pt-BR&q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error('A busca de endereço não respondeu agora. Tente de novo ou cole as coordenadas do Google Maps.');
+  const lista = await r.json();
+  return lista.map((x) => ({ nome: x.display_name, lat: Number(x.lat), lng: Number(x.lon) })).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+export const linkMapa = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;

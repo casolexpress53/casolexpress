@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { dataBR } from '../lib.js';
-import { CURTO, dataDe, fmtMin, hojeBR, folhaMes, hhmm, lerCoordenadas, mensagemErro, RAIO_PADRAO, resumoDia, ROTULO, TIPOS } from '../ponto-lib.js';
+import { buscarEndereco, linkMapa, CURTO, dataDe, fmtMin, hojeBR, folhaMes, hhmm, lerCoordenadas, mensagemErro, RAIO_PADRAO, resumoDia, ROTULO, TIPOS } from '../ponto-lib.js';
 import { posicao, usePontoDono } from '../ponto.js';
 import { temServidor } from '../auth.js';
 import { souDono } from '../store.js';
@@ -22,6 +22,7 @@ function ColabForm({ aberto, colab, onFechar, P }) {
   const ini = () => ({ nome: colab?.nome || '', funcao: colab?.funcao || '', endereco: colab?.endereco || '', lat: colab?.lat ?? '', lng: colab?.lng ?? '', raio: colab?.raio || RAIO_PADRAO, cargaH: colab?.cargaMin ? String(colab.cargaMin / 60).replace('.', ',') : '', ativo: colab?.ativo !== false, batePonto: colab?.batePonto !== false, email: '' });
   const [f, setF] = useState(ini);
   const [cola, setCola] = useState('');
+  const [achados, setAchados] = useState(null);   // opções da busca de endereço
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -32,6 +33,15 @@ function ColabForm({ aberto, colab, onFechar, P }) {
     catch (e) { setMsg({ ok: false, texto: mensagemErro(e) }); }
     setBusy(false);
   }
+  async function buscar() {
+    setBusy(true); setMsg({ ok: null, texto: 'Procurando o endereço…' }); setAchados(null);
+    try {
+      const r = await buscarEndereco(f.endereco);
+      setAchados(r); setMsg(r.length ? { ok: null, texto: 'Escolha a opção certa abaixo e confira no mapa.' } : { ok: false, texto: 'Não achei esse endereço. Tente com rua, número, bairro e cidade, ou cole as coordenadas do Google Maps.' });
+    } catch (e) { setMsg({ ok: false, texto: e.message || mensagemErro(e) }); }
+    setBusy(false);
+  }
+  const usar = (x) => { setF((v) => ({ ...v, lat: x.lat.toFixed(6), lng: x.lng.toFixed(6) })); setAchados(null); setMsg({ ok: true, texto: 'Local definido a partir do endereço. Confira no mapa e ajuste o raio se precisar.' }); };
   function colar() { const c = lerCoordenadas(cola); if (!c) return setMsg({ ok: false, texto: 'Não entendi. Cole no formato: -25.4284, -49.2733' }); setF((x) => ({ ...x, lat: String(c.lat), lng: String(c.lng) })); setCola(''); setMsg({ ok: true, texto: 'Coordenadas aplicadas.' }); }
 
   async function salvar() {
@@ -61,7 +71,18 @@ function ColabForm({ aberto, colab, onFechar, P }) {
         {f.batePonto && (<>
         <label className="f" style={{ maxWidth: 260 }}>Carga diária (horas, opcional)<input className="inp" inputMode="decimal" value={f.cargaH} placeholder="Ex.: 8" onChange={(e) => set('cargaH', e.target.value)} /></label>
         <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase' }}>Local onde o ponto pode ser batido</h3>
-        <label className="f">Endereço (referência)<input className="inp" value={f.endereco} onChange={(e) => set('endereco', e.target.value)} /></label>
+        <label className="f">Endereço do local de trabalho<input className="inp" value={f.endereco} placeholder="Rua, número, bairro, cidade" onChange={(e) => set('endereco', e.target.value)} /></label>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button type="button" className="btn ac" disabled={busy || f.endereco.trim().length < 6} onClick={buscar}><Icon n="pin" size={18} /> Buscar este endereço no mapa</button>
+          {f.lat !== '' && f.lng !== '' && <a className="btn" href={linkMapa(f.lat, f.lng)} target="_blank" rel="noopener noreferrer">Conferir no mapa</a>}
+        </div>
+        {achados?.length > 0 && <div className="list">{achados.map((x) => <button type="button" key={`${x.lat},${x.lng}`} className="item" style={{ width: '100%', background: 'none', border: 0, textAlign: 'left', cursor: 'pointer' }} onClick={() => usar(x)}><span className="small">{x.nome}</span><b>Usar</b></button>)}</div>}
+        {P.colaboradores.some((c) => c.lat != null && c.id !== colab?.id) && (
+          <label className="f">Ou usar o mesmo local de outro funcionário
+            <select className="sel" value="" onChange={(e) => { const c = P.colaboradores.find((x) => x.id === e.target.value); if (c) setF((v) => ({ ...v, endereco: c.endereco || v.endereco, lat: String(c.lat), lng: String(c.lng), raio: c.raio || v.raio })); }}>
+              <option value="">Escolher…</option>{P.colaboradores.filter((c) => c.lat != null && c.id !== colab?.id).map((c) => <option key={c.id} value={c.id}>{c.nome}{c.endereco ? ` · ${c.endereco}` : ''}</option>)}
+            </select></label>
+        )}
         <div className="row">
           <button type="button" className="btn ac" disabled={busy} onClick={aqui}><Icon n="pin" size={18} /> Usar minha localização atual</button>
           <span className="small muted">Faça isso estando no local.</span>
@@ -72,7 +93,7 @@ function ColabForm({ aberto, colab, onFechar, P }) {
           <label className="f">Raio (metros)<input className="inp" type="number" min="20" max="1000" value={f.raio} onChange={(e) => set('raio', e.target.value)} /></label>
         </div>
         <div className="row"><input className="inp" style={{ flex: 1, minWidth: 200 }} aria-label="Colar coordenadas do Google Maps" placeholder="Ou cole do Google Maps: -25.4284, -49.2733" value={cola} onChange={(e) => setCola(e.target.value)} /><button type="button" className="btn sm" onClick={colar}>Aplicar</button></div>
-        <p className="small muted">Raio de 100 m costuma funcionar em área aberta; dentro de galpão o GPS erra mais, então aumente se precisar. Sem coordenadas, o colaborador não consegue bater o ponto.</p>
+        <p className="small muted">Raio de 100 m costuma funcionar em área aberta; dentro de galpão o GPS erra mais, então aumente se precisar. Sem coordenadas, o colaborador não consegue bater o ponto. Você pode voltar em Editar quando quiser para trocar o local ou o raio.</p>
         {temServidor && !novo && vivo && <AcessoBox tipo="colaborador" item={vivo} aoMudar={async () => { tocouAcesso.current = true; await P.recarregar(); }} />}
         {temServidor && novo && <p className="small muted">Salve o colaborador e depois abra <b>Editar</b> para criar o acesso dele ao sistema.</p>}
         </>)}
