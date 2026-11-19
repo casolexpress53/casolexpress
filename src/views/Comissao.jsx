@@ -91,7 +91,7 @@ export default function Comissao() {
                     <div style={{ padding: '0 4px 16px' }}>
                       <div className="list small">
                         <div className="item"><span>Bruto</span><b>{brl(a.bruto)}</b></div>
-                        {a.descMeta > 0 && <div className="item"><span>Meta não cumprida · {brl(a.reducao)} a menos em cada um dos {num(a.pacotes)} pacotes</span><b>− {brl(a.descMeta)}</b></div>}
+                        {(a.atrasoLinhas || []).map((l) => <div className="item" key={l.dias}><span>Entrega fora do horário · {l.rotulo}: {num(l.pacotes)} pacote(s), {brl(l.reducao)} a menos em cada</span><b>− {brl(l.total)}</b></div>)}
                         {a.descontos.map((d) => (<div className="item" key={d.id}><span>Desconto · {d.desc}</span><span className="row"><b>− {brl(d.valor)}</b>{!a.aprovado && <button className="btn sm danger" onClick={() => act.descontoDel(a.reg.id, d.id)} aria-label="Remover desconto"><Icon n="x" size={14} /></button>}</span></div>))}
                         <div className="item"><span>Líquido</span><b>{brl(a.liquido)}</b></div>
                       </div>

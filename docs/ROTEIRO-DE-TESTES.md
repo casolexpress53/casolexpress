@@ -42,11 +42,12 @@
 
 **A7. Regra própria.** Ajustes → *Regra de cada motorista* → escolha **Regra própria** para o motorista de teste e coloque outra meta (por exemplo taxa mínima 80). Volte ao menu SLA: ele deve passar a **Cumprindo**. Teste também **Sem meta** (ele deixa de ser avaliado).
 
-**A8. Redução do valor por pacote.** Ajustes → *Metas de SLA dos motoristas* → **Se não bater a meta**.
-- Escolha **Reduzir um valor fixo por pacote** (ex.: R$ 0,50) ou **uma porcentagem** (ex.: 10%).
-- Vale para a **quinzena**: se qualquer meta ficar abaixo, cada pacote entregue na quinzena é pago com a redução.
-- *Esperado:* em **Comissão**, o acerto do motorista abaixo da meta mostra a linha **"Meta não cumprida"** (ex.: 46 pacotes × R$ 0,50 = − R$ 23,00) e o líquido já vem com o desconto. Na aba **SLA**, a coluna **"No pagamento"** mostra a redução. Quem cumpre a meta não tem redução; salário fixo não muda.
-- Dá para definir uma redução **própria** para um motorista (*Regra própria*) ou **Sem meta**.
+**A8. Redução por atraso na entrega.** Ajustes → *Redução por atraso na entrega*.
+- Marque **Usar a redução…**, informe o **horário limite** (ex.: 21:00), a redução **depois do horário** (ex.: R$ 0,20) e a redução **a cada dia seguinte** (ex.: R$ 0,20). A tela mostra um exemplo com o valor por pacote: com R$ 2,80 → até 21:00 paga **R$ 2,80**; depois das 21:00 paga **R$ 2,60**; no dia seguinte **R$ 2,40**; dois dias depois **R$ 2,20**, e assim por diante. Dá para definir um **valor mínimo** por pacote.
+- Vale **por pacote**, pelo **dia da rota** (a data do romaneio) e pelo horário de Brasília. Entregar às 21:00 em ponto ainda está no prazo.
+- **Como testar:** importe um romaneio com a *data da rota de ontem* e dê baixa hoje: cada pacote conta como entregue **no dia seguinte** (R$ 2,40 se o valor for R$ 2,80). Ou dê baixa depois do horário limite no próprio dia da rota.
+- *Esperado:* em **Comissão**, o acerto do motorista mostra uma linha por faixa ("Entrega fora do horário · No dia seguinte: N pacotes, R$ 0,40 a menos em cada") e o líquido já vem com o desconto. O custo do Painel também usa o valor reduzido.
+- Por motorista: **Regra própria** (outro horário e outros valores) ou **Sem redução**. Salário fixo não sofre redução.
 
 **A9. Ranking.** Painel → **Ranking de motoristas**: cada motorista mostra **A entregar** (pacotes pendentes com ele) e **Entregues**, além de taxa, ocorrências e custo.
 

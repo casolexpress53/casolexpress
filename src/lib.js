@@ -1,4 +1,4 @@
-import { reducaoPorPacote } from './sla.js';
+import { descontoAtraso } from './atraso.js';
 /* ---------- formatação e datas ---------- */
 export const brl = (c = 0) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const num = (n = 0) => n.toLocaleString('pt-BR');
@@ -124,7 +124,8 @@ export function custoMotoristas(S, ini, fim, porMotorista, soMotorista = '') {
   const por = {}; let total = 0;
   for (const m of S.motoristas) {
     if (soMotorista && m.id !== soMotorista) continue;
-    const v = m.tipo === 'fixo' ? Math.round((m.valor * dias) / 30) : (porMotorista[m.id]?.entregues || 0) * Math.max(valorMotorista(S, m) - reducaoPorPacote(S, m, ini, fim).reducao, 0);
+    const base = valorMotorista(S, m);
+    const v = m.tipo === 'fixo' ? Math.round((m.valor * dias) / 30) : Math.max((porMotorista[m.id]?.entregues || 0) * base - descontoAtraso(S, m, ini, fim, base).total, 0);
     if (v > 0) { por[m.id] = v; total += v; }
   }
   return { por, total };
@@ -138,11 +139,10 @@ export function acertoQuinzena(S, m, q) {
   const bruto = m.tipo === 'fixo' ? (operou ? Math.round(m.valor / 2) : 0) : pacotes * valorMotorista(S, m);
   const reg = S.acertos.find((a) => a.motoristaId === m.id && a.ini === q.ini);
   const descontos = reg?.descontos || [];
-  // meta não batida na quinzena: reduz o valor de cada pacote entregue (regra cadastrada em Ajustes)
-  const red = reducaoPorPacote(S, m, q.ini, q.fim);
-  const descMeta = pacotes * red.reducao;
-  const totalDesc = descontos.reduce((s, d) => s + d.valor, 0) + descMeta;
-  return { motorista: m, pacotes, bruto, descontos, descMeta, reducao: red.reducao, slaAplica: red.aplica, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
+  // entregas fora do horário (regra de atraso cadastrada em Ajustes): cada pacote é pago com a redução da faixa
+  const atraso = descontoAtraso(S, m, q.ini, q.fim, valorMotorista(S, m));
+  const totalDesc = descontos.reduce((s, d) => s + d.valor, 0) + atraso.total;
+  return { motorista: m, pacotes, bruto, descontos, descAtraso: atraso.total, atrasoLinhas: atraso.linhas, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
 }
 
 /* Quinzenas com operação (a partir dos romaneios). */

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
+import { exemploFaixas, regraAtraso } from '../atraso.js';
 import { brl } from '../lib.js';
 import { act, getState, recarregar, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
@@ -10,18 +11,15 @@ import { H2 } from '../components/Recolher.jsx';
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
 
-/* redução do valor por pacote quando a meta não é batida: Nenhuma | valor fixo (R$ por pacote) | percentual */
-function Reducao({ pen, onChange, rotulo }) {
-  const tipo = pen?.tipo || '';
+/* campos da regra de redução por atraso (padrão ou própria do motorista) */
+function CamposAtraso({ r = {}, onChange }) {
+  const set = (patch) => onChange({ ...r, ...patch });
   return (
-    <div className="row" style={{ alignItems: 'end' }}>
-      <label className="f" style={{ minWidth: 220 }}>{rotulo}
-        <select className="sel" value={tipo} onChange={(e) => onChange(e.target.value ? { tipo: e.target.value, valor: 0 } : null)}>
-          <option value="">Não reduzir</option><option value="valor">Reduzir um valor fixo por pacote (R$)</option><option value="percentual">Reduzir uma porcentagem do valor por pacote (%)</option>
-        </select>
-      </label>
-      {tipo === 'valor' && <label className="f" style={{ maxWidth: 160 }}>Reduzir por pacote (R$)<Money valor={pen.valor || 0} onChange={(v) => onChange({ tipo, valor: v })} /></label>}
-      {tipo === 'percentual' && <label className="f" style={{ maxWidth: 160 }}>Reduzir (%)<input className="inp" type="number" min="0" max="100" step="0.5" value={pen.valor || ''} onChange={(e) => onChange({ tipo, valor: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} /></label>}
+    <div className="form">
+      <label className="f">Horário limite (no dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
+      <label className="f">Depois do horário, reduzir por pacote (R$)<Money valor={r.apos || 0} onChange={(v) => set({ apos: v })} /></label>
+      <label className="f">A cada dia seguinte, reduzir mais (R$)<Money valor={r.porDia || 0} onChange={(v) => set({ porDia: v })} /></label>
+      <label className="f">Valor mínimo por pacote (R$, opcional)<Money valor={r.minimo || 0} onChange={(v) => set({ minimo: v })} /></label>
     </div>
   );
 }
@@ -103,9 +101,6 @@ export default function Ajustes() {
           ))}
         </div>
         <p className="small muted" style={{ marginTop: 8 }}>{METRICAS_SLA.map((x) => `${x.rotulo}: ${x.ajuda}`).join(' ')}</p>
-        <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Se não bater a meta</h3>
-        <p className="small muted">Se <b>qualquer</b> meta ficar abaixo no período do acerto (a quinzena), o valor de <b>cada pacote entregue</b> nessa quinzena é pago com a redução. Vale para quem é pago por pacote; o salário fixo não muda. Aparece como “Meta não cumprida” na Comissão.</p>
-        <Reducao rotulo="Redução padrão" pen={S.ajustes.sla?.penalidade} onChange={(p) => act.ajustes({ sla: { ...S.ajustes.sla, penalidade: p } })} />
         <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Regra de cada motorista</h3>
         {S.motoristas.length === 0 ? <p className="small muted">Cadastre motoristas acima para definir regras por motorista.</p> : (
           <div className="list">
@@ -120,7 +115,43 @@ export default function Ajustes() {
                   {modo === 'proprio' && METRICAS_SLA.map((x) => (
                     <label className="f" key={x.k} style={{ flex: '1 1 110px' }}>{x.rotulo}<Meta m={x} valor={mo.sla?.[x.k]} onChange={(v) => setSla({ [x.k]: v })} /></label>
                   ))}
-                  {modo === 'proprio' && <div style={{ flex: '1 1 100%' }}><Reducao rotulo="Redução deste motorista" pen={mo.sla?.penalidade} onChange={(p) => setSla({ penalidade: p })} /></div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <H2 id="reducao-atraso">Redução por atraso na entrega</H2>
+        <p className="sub">Se o motorista entregar depois do horário combinado, o valor de <b>cada pacote</b> é reduzido. O horário vale para o <b>dia da rota</b> (a data do romaneio); entregar no dia seguinte reduz mais, e cada dia a mais reduz mais ainda. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, linha por linha.</p>
+        <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar a redução por atraso para todos os motoristas</b></label>
+        <CamposAtraso r={S.ajustes.reducaoAtraso} onChange={(r) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ...r } })} />
+        {(() => {
+          const base = S.ajustes.valorPadrao > 0 ? S.ajustes.valorPadrao : (S.motoristas.find((x) => x.tipo !== 'fixo' && x.valor > 0)?.valor || 280);
+          const regra = regraAtraso({ ajustes: { reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: true } } }, { tipo: 'pacote' });
+          return regra ? (
+            <div className="list small" style={{ marginTop: 10 }}>
+              <div className="item"><b>Exemplo com {brl(base)} por pacote</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
+              {exemploFaixas(regra, base).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{brl(f.valor)}</b></div>)}
+            </div>
+          ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o horário e pelo menos um valor de redução para ver o exemplo.</p>;
+        })()}
+        <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Por motorista</h3>
+        <p className="small muted">Por padrão, todos seguem a regra acima. Aqui dá para dar uma regra própria a um motorista ou isentá-lo.</p>
+        {S.motoristas.length === 0 ? <p className="small muted">Cadastre motoristas acima.</p> : (
+          <div className="list">
+            {S.motoristas.map((mo) => {
+              const ra = mo.reducaoAtraso || {}, modo = ra.modo || 'padrao';
+              return (
+                <div className="item" key={mo.id} style={{ alignItems: 'end' }}>
+                  <div style={{ flex: '1 1 170px' }}><b>{mo.nome}</b>{mo.tipo === 'fixo' && <div className="small muted">Salário fixo: não sofre redução</div>}</div>
+                  <label className="f" style={{ flex: '1 1 200px' }}>Redução por atraso
+                    <select className="sel" value={modo} onChange={(e) => act.upd('motoristas', mo.id, { reducaoAtraso: { ...ra, modo: e.target.value } })}>
+                      <option value="padrao">Usar a regra geral</option><option value="proprio">Regra própria</option><option value="nenhuma">Sem redução</option>
+                    </select>
+                  </label>
+                  {modo === 'proprio' && <div style={{ flex: '1 1 100%' }}><CamposAtraso r={ra} onChange={(r) => act.upd('motoristas', mo.id, { reducaoAtraso: { ...ra, ...r, modo: 'proprio' } })} /></div>}
                 </div>
               );
             })}
