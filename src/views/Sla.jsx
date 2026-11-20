@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { horaBR, hojeBRT, reporteHxH } from '../hxh.js';
 import { brl, num, PERIODOS, periodo, valorMotorista } from '../lib.js';
-import { descontoAtraso, regraAtraso } from '../atraso.js';
+import { descontoAtraso, pontualidade, regraAtraso } from '../atraso.js';
 import { avaliarSla, METRICAS_SLA, STATUS_SLA, temAlgumaMeta } from '../sla.js';
 import { useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
@@ -27,6 +27,8 @@ function Reporte({ ir }) {
   const [ate, setAte] = useState('');
   const P = modo === 'dia' ? { ini: dia || ultimo, fim: dia || ultimo } : modo === 'datas' ? { ini: de || ultimo, fim: ate || hoje } : periodo(modo);
   const { linhas, tot } = useMemo(() => reporteHxH(S, P.ini, P.fim, hoje), [S, P.ini, P.fim, hoje]);
+  const pont = useMemo(() => { const o = {}; let ent = 0, at = 0, desc = 0; for (const l of linhas) { const m = S.motoristas.find((x) => x.id === l.motoristaId); if (!m) continue; const q = pontualidade(S, m, P.ini, P.fim); const d = descontoAtraso(S, m, P.ini, P.fim, valorMotorista(S, m)).total; o[l.motoristaId] = { ...q, desconto: d }; ent += q.entregues; at += q.atrasados; desc += d; } return { por: o, ent, at, desc, pct: ent ? (ent - at) / ent : null }; }, [S, linhas, P.ini, P.fim]);
+  const horaLimite = S.ajustes.reducaoAtraso?.ativo ? S.ajustes.reducaoAtraso.hora : null;
   const semPrazo = !S.ajustes.prazosCidade || !Object.keys(S.ajustes.prazosCidade).length;
   return (
     <div className="card">
@@ -45,10 +47,11 @@ function Reporte({ ir }) {
         <div className="card"><div className="k-l">⚠️ Vence hoje</div><div className="k-v">{num(tot.vence)}</div></div>
         <div className="card"><div className="k-l">🕒 No prazo</div><div className="k-v">{num(tot.prazo)}</div></div>
         <div className="card"><div className="k-l">🚨 Fora do prazo</div><div className="k-v" style={tot.fora ? { color: 'var(--bad)' } : undefined}>{num(tot.fora)}</div></div>
+        <div className="card"><div className="k-l">⏰ Pontualidade{horaLimite ? ` (até ${horaLimite})` : ''}</div><div className="k-v">{pont.pct == null ? '—' : pctFmt(pont.pct)}</div><div className="k-s">{num(pont.at)} entregue(s) depois do horário{pont.desc > 0 ? ` · − ${brl(pont.desc)}` : ''}</div></div>
       </div>
       {!linhas.length ? <Vazio titulo="Nada carregado" texto="Importe o relatório da plataforma em Romaneio para ver o reporte deste período." /> : (
         <div className="tbl-wrap"><table className="tbl">
-          <thead><tr><th>Turno</th><th>Carregamento</th><th>1ª entrega</th><th>Última</th><th>Motorista</th><th className="r">Carregados</th><th className="r">✅ Entregue</th><th className="r">⚠️ Vence hoje</th><th className="r">🕒 No prazo</th><th className="r">🚨 Fora do prazo</th><th className="r">Performance</th><th>Cidade</th><th>Tempo de entrega</th><th>Dia carregado</th></tr></thead>
+          <thead><tr><th>Turno</th><th>Carregamento</th><th>1ª entrega</th><th>Última</th><th>Motorista</th><th className="r">Carregados</th><th className="r">✅ Entregue</th><th className="r">⚠️ Vence hoje</th><th className="r">🕒 No prazo</th><th className="r">🚨 Fora do prazo</th><th className="r">Performance</th><th className="r">⏰ Pontualidade</th><th className="r">Após o horário</th><th className="r">Desconto</th><th>Cidade</th><th>Tempo de entrega</th><th>Dia carregado</th></tr></thead>
           <tbody>{linhas.map((l) => (
             <tr key={l.motoristaId}>
               <td>{l.turno || '—'}</td>
@@ -62,6 +65,11 @@ function Reporte({ ir }) {
               <td className="r">{num(l.prazo)}</td>
               <td className="r">{l.fora ? <span className="tag bad">{num(l.fora)}</span> : 0}</td>
               <td className="r"><span className={`tag ${l.performance >= 0.9 ? 'ok' : l.performance >= 0.7 ? 'warn' : 'bad'}`}>{pctFmt(l.performance)}</span></td>
+              {(() => { const q = pont.por[l.motoristaId]; return (<>
+                <td className="r">{q?.pct == null ? <span className="muted">—</span> : <span className={`tag ${q.atrasados ? 'warn' : 'ok'}`}>{pctFmt(q.pct)}</span>}</td>
+                <td className="r">{q?.atrasados ? <span className="tag bad">{num(q.atrasados)}</span> : q?.regra ? 0 : <span className="muted">—</span>}</td>
+                <td className="r">{q?.desconto > 0 ? <span className="tag bad">− {brl(q.desconto)}</span> : <span className="muted">—</span>}</td>
+              </>); })()}
               <td>{l.cidade || '—'}</td>
               <td>D + {l.prazoCidade}</td>
               <td>{ddmm(l.diaCarga)}</td>

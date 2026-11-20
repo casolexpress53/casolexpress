@@ -105,3 +105,31 @@ export function exemploFaixas(regra, base) {
   return cen.sort((a, b) => a.ord - b.ord).filter((c) => !vistos.has(c.rotulo) && vistos.add(c.rotulo))
     .map((c) => ({ rotulo: c.rotulo, valor: Math.max(base - calcular(regra, c.atrasoMin, c.dias, base).reducao, 0) })).slice(0, 10);
 }
+
+/* Só o horário limite da regra que vale para o motorista (mesmo sem faixas de redução cadastradas). null = sem regra. */
+export function regraHora(S, m) {
+  const modo = m.reducaoAtraso?.modo || 'padrao';
+  if (modo === 'nenhuma') return null;
+  const r = modo === 'proprio' ? m.reducaoAtraso : S.ajustes?.reducaoAtraso;
+  if (!r || (modo !== 'proprio' && !r.ativo)) return null;
+  return HORA.test(String(r.hora || '')) ? { hora: r.hora } : null;
+}
+
+/* Pontualidade (indicador separado da Performance): dos pacotes entregues no período, quantos foram entregues
+   até o horário limite do dia da rota (ou antes) e quantos depois. Mesmo horário e mesmo dia da regra de desconto. */
+export function pontualidade(S, m, ini, fim) {
+  const regra = regraHora(S, m);
+  const vazio = { regra: null, entregues: 0, noHorario: 0, atrasados: 0, pct: null, desconto: 0 };
+  if (!regra) return vazio;
+  const rom = new Map(S.romaneios.map((r) => [r.id, r]));
+  let ent = 0, at = 0;
+  for (const p of S.paradas) {
+    if (p.motoristaId !== m.id || p.status !== 'entregue' || !p.baixaEm) continue;
+    const r = rom.get(p.romaneioId);
+    if (!r || r.data < ini || r.data > fim) continue;
+    const n = p.pacotes.length; ent += n;
+    const limite = new Date(`${r.data}T${regra.hora}:00-03:00`);
+    if (Math.floor((new Date(p.baixaEm) - limite) / 60000) >= 1) at += n;
+  }
+  return { regra, entregues: ent, noHorario: ent - at, atrasados: at, pct: ent ? (ent - at) / ent : null };
+}

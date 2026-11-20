@@ -9,6 +9,7 @@ import { CelulaSla } from './Sla.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import { horaBR, reporteHxH } from '../hxh.js';
 import { gerarPdf } from '../pdf.js';
+import { pontualidade } from '../atraso.js';
 import { apagarNota, enviarNota, fmtTamanho, useNotas } from '../notas.js';
 
 function posicao() {
@@ -123,6 +124,7 @@ function Extrato({ m, S, q }) {
 function MeuReporte({ m, S }) {
   const per = useFiltroPeriodo('hoje', { tudo: false });
   const r = useMemo(() => reporteHxH(S, per.P.ini, per.P.fim).linhas.find((l) => l.motoristaId === m.id), [S, per.P.ini, per.P.fim, m.id]);
+  const pont = useMemo(() => pontualidade(S, m, per.P.ini, per.P.fim), [S, m, per.P.ini, per.P.fim]);
   const pctTxt = (v) => `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%`;
   const Cel = ({ rot, v, cor }) => <div className="card" style={{ padding: 14 }}><div className="k-l">{rot}</div><div className="k-v" style={{ fontSize: 28, ...(cor ? { color: cor } : {}) }}>{v}</div></div>;
   return (
@@ -137,6 +139,8 @@ function MeuReporte({ m, S }) {
           <Cel rot="⚠️ Vence hoje" v={num(r.vence)} />
           <Cel rot="🕒 No prazo" v={num(r.prazo)} />
           <Cel rot="🚨 Fora do prazo" v={num(r.fora)} cor={r.fora ? 'var(--bad)' : undefined} />
+          {pont.regra && <Cel rot={`⏰ Pontualidade (até ${pont.regra.hora})`} v={pont.pct == null ? '—' : pctTxt(pont.pct)} cor={pont.atrasados ? 'var(--bad)' : undefined} />}
+          {pont.regra && <Cel rot="Entregues depois do horário" v={num(pont.atrasados)} cor={pont.atrasados ? 'var(--bad)' : undefined} />}
         </div>
         <p className="small muted">{r.carga ? `Carregamento ${horaBR(r.carga)} (${r.turno}) · ` : ''}1ª entrega {r.primeira ? horaBR(r.primeira) : 'não iniciada'} · última {r.ultima ? horaBR(r.ultima) : 'não iniciada'}</p>
       </>)}
