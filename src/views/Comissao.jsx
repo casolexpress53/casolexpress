@@ -88,6 +88,7 @@ export default function Comissao() {
       <div className="card">
         <H2>Acertos por motorista ({acertos.length})</H2>
         <p className="sub">{brl(falta)} a pagar · {livre ? 'toque para ver o detalhe (período livre: sem aprovação)' : 'toque para ver e aprovar'}</p>
+        {acertos.some((a) => a.pacotesDepois > 0) && <p className="small l-err" role="alert">{acertos.filter((a) => a.pacotesDepois > 0).length} acerto(s) com pacotes entregues depois da aprovação. Abra o motorista marcado para lançar o complemento.</p>}
         {!acertos.length ? <p className="muted">Nenhum acerto nesta quinzena.</p> : (
           <div className="list">
             {acertos.map((a) => {
@@ -96,7 +97,7 @@ export default function Comissao() {
                 <div key={m.id}>
                   <button className="item" style={{ width: '100%', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }} onClick={() => setAberto(ab ? '' : m.id)} aria-expanded={ab}>
                     <span><b>{m.nome}</b>{m.desligadoEm && <span className="tag" style={{ marginLeft: 8 }}>Desligado em {dataBR(m.desligadoEm)} · acerto final</span>}<br /><span className="muted small">{m.tipo === 'fixo' ? 'Salário fixo (metade)' : `${num(a.pacotes)} pacote(s)`}</span></span>
-                    <span className="row"><b>{brl(a.liquido)}</b><span className={`tag ${a.aprovado ? 'ok' : 'warn'}`}>{a.aprovado ? 'Aprovado' : 'Aberto'}</span><Icon n="down" size={18} /></span>
+                    <span className="row"><b>{brl(a.liquido)}</b>{a.pacotesDepois > 0 && <span className="tag bad">+{num(a.pacotesDepois)} após aprovar</span>}<span className={`tag ${a.aprovado ? 'ok' : 'warn'}`}>{a.aprovado ? 'Aprovado' : 'Aberto'}</span><Icon n="down" size={18} /></span>
                   </button>
                   {ab && (
                     <div style={{ padding: '0 4px 16px' }}>
@@ -106,6 +107,12 @@ export default function Comissao() {
                         {a.descontos.map((d) => (<div className="item" key={d.id}><span>Desconto · {d.desc}</span><span className="row"><b>− {brl(d.valor)}</b>{!a.aprovado && <button className="btn sm danger" onClick={() => act.descontoDel(a.reg.id, d.id)} aria-label="Remover desconto"><Icon n="x" size={14} /></button>}</span></div>))}
                         <div className="item"><span>Líquido</span><b>{brl(a.liquido)}</b></div>
                       </div>
+                      {a.pacotesDepois > 0 && (
+                        <div className="card" style={{ padding: 12, borderColor: 'var(--bad)', marginBottom: 10 }} role="alert">
+                          <p className="small"><b>{num(a.pacotesDepois)} pacote(s) foram entregues depois da aprovação</b> e não estão no valor pago. Diferença a pagar: <b>{brl(a.complemento)}</b>.</p>
+                          {!livre && a.complemento > 0 && <button className="btn sm ac" onClick={() => window.confirm(`Lançar no caixa o complemento de ${brl(a.complemento)} para ${m.nome}?`) && act.complementar(a.reg.id, m.nome, q, a.complemento, a.vivo, h)}><Icon n="check" size={16} /> Lançar complemento de {brl(a.complemento)}</button>}
+                        </div>
+                      )}
                       {livre ? null : a.aprovado
                         ? <div className="row" style={{ marginTop: 12 }}><button className="btn sm" onClick={() => act.desaprovar(a.reg.id)}>Desfazer aprovação</button></div>
                         : (<>

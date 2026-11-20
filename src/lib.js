@@ -162,7 +162,12 @@ export function acertoQuinzena(S, m, q) {
   const totalDesc = descontos.reduce((s, d) => s + d.valor, 0) + atraso.total;
   const base = { motorista: m, pacotes, bruto, descontos, descAtraso: atraso.total, atrasoLinhas: atraso.linhas, totalDesc, liquido: Math.max(bruto - totalDesc, 0), reg, aprovado: !!reg?.aprovadoEm };
   // acerto já pago: vale o que foi pago na época (não muda se a regra, o valor por pacote ou o período mudarem depois)
-  if (reg?.aprovadoEm && reg.snap) return { ...base, ...reg.snap, congelado: true };
+  if (reg?.aprovadoEm && reg.snap) {
+    const out = { ...base, ...reg.snap, congelado: true };
+    // pacote entregue depois da aprovação (carregado nesta quinzena): não entra no valor congelado, então avisa e oferece o complemento
+    if (m.tipo !== 'fixo' && base.pacotes > (reg.snap.pacotes || 0)) { out.pacotesDepois = base.pacotes - (reg.snap.pacotes || 0); out.complemento = Math.max(base.liquido - (reg.snap.liquido || 0), 0); out.vivo = base; }
+    return out;
+  }
   if (reg?.aprovadoEm && reg.liquidoPago != null) return { ...base, liquido: reg.liquidoPago, parcial: true, congelado: true };   // pago antes de guardarmos o detalhe: só o valor líquido
   return base;
 }

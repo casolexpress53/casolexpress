@@ -115,17 +115,28 @@ export const act = {
   /* Importa o relatório: cria o romaneio só se houver pacotes novos e atualiza as paradas que já existiam
      (atribui motorista que faltava e dá baixa no que a plataforma já mostra como entregue). */
   importar: ({ empresaId, data, arquivo, paradas, atualizacoes = [] }) => setState((s) => {
-    let ps = s.paradas;
+    let ps = s.paradas, romaneios = s.romaneios;
+    // o dia da rota é o dia em que o pacote foi carregado: cada dia usa um romaneio (o que já existe, ou um novo desta importação)
+    const dataDe = new Map(s.romaneios.map((r) => [r.id, r.data]));
+    const romExistente = new Map();
+    for (const r of s.romaneios) if (r.empresaId === empresaId && !romExistente.has(r.data)) romExistente.set(r.data, r.id);
+    const novosRom = new Map();
+    const romPara = (dia, soNovo) => {
+      if (!soNovo && romExistente.has(dia)) return romExistente.get(dia);
+      let id = novosRom.get(dia);
+      if (!id) { id = uid(); novosRom.set(dia, id); romaneios = [...romaneios, { id, empresaId, data: dia, arquivo, finalizado: false }]; }
+      return id;
+    };
     for (const op of atualizacoes) {
       const p = ps.find((x) => x.id === op.paradaId); if (!p || op.tipo !== 'reparticionar') continue;
       const gs = op.grupos, keeper = gs.reduce((a, g) => (g.codigos.length > a.codigos.length ? g : a), gs[0]);   // o maior grupo continua sendo a parada original
-      const novos = gs.filter((g) => g !== keeper).map((g) => ({ ...p, id: uid(), pacotes: g.codigos, motoristaId: g.motoristaId, status: g.status, baixaEm: g.baixaEm }));
-      ps = [...ps.map((x) => (x.id === p.id ? { ...x, pacotes: keeper.codigos, motoristaId: keeper.motoristaId, status: keeper.status, baixaEm: keeper.baixaEm } : x)), ...novos];
+      const estado = (g) => ({ pacotes: g.codigos, motoristaId: g.motoristaId, status: g.status, baixaEm: g.baixaEm, ...(g.carregadoEm ? { carregadoEm: g.carregadoEm } : {}), romaneioId: g.dia && g.dia !== dataDe.get(p.romaneioId) ? romPara(g.dia, false) : p.romaneioId });
+      const novos = gs.filter((g) => g !== keeper).map((g) => ({ ...p, id: uid(), ...estado(g) }));
+      ps = [...ps.map((x) => (x.id === p.id ? { ...x, ...estado(keeper) } : x)), ...novos];
     }
-    if (!paradas.length) return { ...s, paradas: ps };
-    const id = uid();
-    const novas = paradas.map((p) => ({ id: uid(), romaneioId: id, status: 'pendente', baixaEm: null, ...p }));
-    return { ...s, romaneios: [...s.romaneios, { id, empresaId, data, arquivo, finalizado: false }], paradas: [...ps, ...novas] };
+    if (!paradas.length) return { ...s, romaneios, paradas: ps };
+    const novas = paradas.map(({ dia, ...p }) => ({ id: uid(), romaneioId: romPara(dia || data, true), status: 'pendente', baixaEm: null, ...p }));
+    return { ...s, romaneios, paradas: [...ps, ...novas] };
   }),
   excluirRomaneio: (id) => setState((s) => ({ ...s, romaneios: s.romaneios.filter((r) => r.id !== id), paradas: s.paradas.filter((p) => p.romaneioId !== id) })),
   distribuir: (cidade, motoristaId) => setState((s) => ({
@@ -152,10 +163,24 @@ export const act = {
     });
     act.upd('acertos', id, { aprovadoEm: new Date().toISOString(), lancId, snap });   // snap: valores no momento do pagamento (não mudam se a regra mudar depois)
   },
+  /* Pacotes entregues depois da aprovação: lança só a diferença no caixa e atualiza os valores do acerto. */
+  complementar: (acertoId, nome, q, valor, vivo, hojeISO) => {
+    const reg = getState().acertos.find((x) => x.id === acertoId);
+    if (!reg?.snap || !(valor > 0)) return;
+    const lancId = act.add('lancamentos', {
+      data: hojeISO, tipo: 'saida', categoria: 'Comissão de motorista', pago: true, venc: hojeISO, origem: 'comissao',
+      descricao: `Complemento ${nome} · ${q.ini.slice(8)}/${q.ini.slice(5, 7)} a ${q.fim.slice(8)}/${q.fim.slice(5, 7)}`, valor,
+    });
+    act.upd('acertos', acertoId, {
+      snap: { pacotes: vivo.pacotes, bruto: vivo.bruto, descAtraso: vivo.descAtraso, totalDesc: vivo.totalDesc, liquido: reg.snap.liquido + valor },
+      complementos: [...(reg.complementos || []), { lancId, valor, em: new Date().toISOString() }],
+    });
+  },
   desaprovar: (acertoId) => {
     const a = getState().acertos.find((x) => x.id === acertoId);
     if (a?.lancId) act.del('lancamentos', a.lancId);
-    act.upd('acertos', acertoId, { aprovadoEm: null, lancId: null, snap: null });
+    for (const c of a?.complementos || []) act.del('lancamentos', c.lancId);
+    act.upd('acertos', acertoId, { aprovadoEm: null, lancId: null, snap: null, complementos: [] });
   },
 };
 

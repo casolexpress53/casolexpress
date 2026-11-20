@@ -1,4 +1,5 @@
 import { norm } from './lib.js';
+import { diaBR } from './hxh.js';
 
 /*
   Leitura da lista da plataforma (Excel/CSV). Sem depender do nome exato das colunas:
@@ -96,24 +97,26 @@ export function analisar(linhas, S, empresaId, data) {
     const mo = nomeEnt ? porNome.get(chaveNome(nomeEnt)) : null;
     if (nomeEnt && !mo) faltam.set(chaveNome(nomeEnt), limparNome(nomeEnt));
     const entregue = m.situacao ? foiEntregue(l[m.situacao]) : false;
+    const carga = m.carregadoEm ? instante(l[m.carregadoEm], '') : null;   // quando o pacote foi carregado
+    const dia = carga ? diaBR(carga) : data;                               // o dia da rota é o dia do carregamento
     const ex = existentes.get(cod);
     if (ex) {
       if (vistosEx.has(cod)) { repetidos++; continue; }
       vistosEx.add(cod); jaExistiam++;
-      const lista = info.get(ex.id) || []; lista.push({ cod, mid: mo?.id || null, entregue, baixaEm: entregue ? instante(m.horaEntrega ? l[m.horaEntrega] : '', data) : null }); info.set(ex.id, lista);
+      const lista = info.get(ex.id) || []; lista.push({ cod, dia, carga, mid: mo?.id || null, entregue, baixaEm: entregue ? instante(m.horaEntrega ? l[m.horaEntrega] : '', data) : null }); info.set(ex.id, lista);
       continue;
     }
     if (vistos.has(cod)) { repetidos++; continue; }
     vistos.add(cod);
     const bruta = String(m.cidade ? l[m.cidade] : '').trim(), cidade = cidades.get(norm(bruta)) || bruta;
     // mesmo endereço só junta se for o mesmo entregador e a mesma situação (entregues e pendentes ficam em paradas separadas)
-    const key = `${norm(end)}|${norm(cidade)}|${entregue ? 'e' : 'p'}|${nomeEnt ? chaveNome(nomeEnt) : ''}`;
+    const key = `${norm(end)}|${norm(cidade)}|${entregue ? 'e' : 'p'}|${nomeEnt ? chaveNome(nomeEnt) : ''}|${dia}`;
     let g = grupos.get(key);
     if (!g) {
       const bairro = m.bairro ? String(l[m.bairro]).trim() : '';
-      g = { endereco: end, bairro: /^[.\-\s]*$/.test(bairro) ? '' : bairro, cidade, cliente: m.cliente ? String(l[m.cliente]).trim() : '', pacotes: [], motoristaId: null, gps: null };
+      g = { endereco: end, bairro: /^[.\-\s]*$/.test(bairro) ? '' : bairro, cidade, cliente: m.cliente ? String(l[m.cliente]).trim() : '', pacotes: [], motoristaId: null, gps: null, dia };
       if (entregue) { g.status = 'entregue'; g.baixaEm = instante(m.horaEntrega ? l[m.horaEntrega] : '', data); }
-      if (m.carregadoEm) { const c = instante(l[m.carregadoEm], ''); if (c) g.carregadoEm = c; }
+      if (carga) g.carregadoEm = carga;
       if (mo) g.motoristaId = mo.id;
       grupos.set(key, g);
     }
@@ -123,31 +126,35 @@ export function analisar(linhas, S, empresaId, data) {
   // O entregador da planilha vale mais do que o que está no sistema (ex.: paradas distribuídas à mão antes de o motorista
   // ser cadastrado). Cada parada existente é reorganizada por entregador/situação; só gera mudança se algo for diferente.
   const nomeDe = new Map(S.motoristas.map((x) => [x.id, x.nome]));
-  const atualizacoes = []; let entregasAtualizadas = 0, motoristasAtribuidos = 0, reatribuidos = 0; const trocas = new Map();
+  const atualizacoes = []; let entregasAtualizadas = 0, motoristasAtribuidos = 0, reatribuidos = 0, redatados = 0; const trocas = new Map(), diasMovidos = new Map();
   for (const [id, lista] of info) {
     const p = S.paradas.find((x) => x.id === id), mapa = new Map(lista.map((x) => [x.cod, x]));
+    const diaAtual = romPor.get(p.romaneioId)?.data || data;
     const grupos2 = new Map();
     for (const cod of p.pacotes) {
       const it = mapa.get(cod);
+      const dia = it?.dia || diaAtual;
       const mid = it?.mid || p.motoristaId || null;
       const jaEnt = p.status === 'entregue';
       const entregue = jaEnt || !!it?.entregue;
       const baixaEm = jaEnt ? p.baixaEm : it?.entregue ? it.baixaEm : null;
-      const k = `${mid || ''}|${entregue ? 'e' : 'p'}`;
-      const g = grupos2.get(k) || { codigos: [], motoristaId: mid, status: entregue ? 'entregue' : 'pendente', baixaEm };
+      const k = `${mid || ''}|${entregue ? 'e' : 'p'}|${dia}`;
+      const g = grupos2.get(k) || { codigos: [], motoristaId: mid, status: entregue ? 'entregue' : 'pendente', baixaEm, dia, carregadoEm: null };
+      const car = it?.carga || p.carregadoEm || null; if (car && (!g.carregadoEm || car < g.carregadoEm)) g.carregadoEm = car;
       g.codigos.push(cod); if (baixaEm && (!g.baixaEm || baixaEm > g.baixaEm)) g.baixaEm = baixaEm; grupos2.set(k, g);
       if (it) {
         if (mid !== (p.motoristaId || null)) { if (p.motoristaId) { reatribuidos++; const t = `${nomeDe.get(p.motoristaId) || '—'} → ${nomeDe.get(mid) || '—'}`; trocas.set(t, (trocas.get(t) || 0) + 1); } else motoristasAtribuidos++; }
         if (!jaEnt && it.entregue) entregasAtualizadas++;
+        if (it.dia !== diaAtual) { redatados++; diasMovidos.set(it.dia, (diasMovidos.get(it.dia) || 0) + 1); }
       }
     }
     const gs = [...grupos2.values()];
-    const igual = gs.length === 1 && gs[0].motoristaId === (p.motoristaId || null) && gs[0].status === p.status;
+    const igual = gs.length === 1 && gs[0].motoristaId === (p.motoristaId || null) && gs[0].status === p.status && gs[0].dia === diaAtual && (!!p.carregadoEm || !gs[0].carregadoEm);
     if (!igual) atualizacoes.push({ tipo: 'reparticionar', paradaId: id, grupos: gs });
   }
   const paradas = [...grupos.values()];
   return {
-    paradas, pacotes: vistos.size, repetidos, jaExistiam, atualizacoes, entregasAtualizadas, motoristasAtribuidos, reatribuidos, trocas: [...trocas.entries()].sort((x, y) => y[1] - x[1]), entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
+    paradas, pacotes: vistos.size, repetidos, jaExistiam, atualizacoes, entregasAtualizadas, motoristasAtribuidos, reatribuidos, redatados, diasMovidos: [...diasMovidos.entries()].sort((x, y) => x[0].localeCompare(y[0])), trocas: [...trocas.entries()].sort((x, y) => y[1] - x[1]), entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
     semCad: [...faltam.values()], colunas: m,
   };
 }
