@@ -90,7 +90,7 @@ export default function Romaneio() {
             <div><div className="k-v">{num(prev.jaExistiam || 0)}</div><div className="k-s">já estavam no sistema</div></div>
             <div><div className="k-v">{num(prev.atribuidas)}</div><div className="k-s">já com motorista</div></div>
           </div>
-          {(prev.entregasAtualizadas > 0 || prev.motoristasAtribuidos > 0) && <p className="small" style={{ marginTop: 12 }}><b>Pacotes que já estavam no sistema serão atualizados:</b> {num(prev.entregasAtualizadas)} pacote(s) passam a constar como entregues e {num(prev.motoristasAtribuidos)} parada(s) sem motorista recebem o entregador da planilha.</p>}
+          {(prev.entregasAtualizadas > 0 || prev.motoristasAtribuidos > 0 || prev.reatribuidos > 0) && <div className="small" style={{ marginTop: 12 }}><p><b>Pacotes que já estavam no sistema serão atualizados pela planilha:</b> {num(prev.entregasAtualizadas)} passam a constar como entregues, {num(prev.motoristasAtribuidos)} sem motorista recebem o entregador da planilha e {num(prev.reatribuidos)} trocam de motorista.</p>{prev.trocas?.length > 0 && <p className="muted">Trocas: {prev.trocas.slice(0, 6).map(([t, n]) => `${t} (${num(n)})`).join(' · ')}{prev.trocas.length > 6 ? '…' : ''}</p>}</div>}
           {!prev.paradas.length && !prev.atualizacoes?.length && <p className="small muted" style={{ marginTop: 12 }}>Nada novo nesta planilha: todos os pacotes já estavam no sistema e nada mudou.</p>}
           {prev.entreguesPlat > 0 && <p className="small" style={{ marginTop: 12 }}><b>{num(prev.entreguesPlat)} pacote(s) já constam como entregues na plataforma.</b> Eles entram como <b>entregues</b> (com o horário da entrega da planilha), e não como pendentes.</p>}
           {prev.semCad.length > 0 && (

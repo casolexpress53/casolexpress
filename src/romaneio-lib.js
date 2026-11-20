@@ -87,7 +87,7 @@ export function analisar(linhas, S, empresaId, data) {
   const cidades = m.cidade ? cidadesCanonicas(linhas, m.cidade) : new Map();
   const porNome = new Map(S.motoristas.map((x) => [chaveNome(x.nome), x]));
   const vistos = new Set(), vistosEx = new Set(), grupos = new Map(), faltam = new Map();
-  const entNovas = new Map(), atribuir = new Map();   // paradaId -> [{cod, baixaEm}] / motoristaId
+  const info = new Map();   // paradaId -> pacotes dela que aparecem na planilha, com o entregador e a situação de lá
   let repetidos = 0, entreguesPlat = 0, jaExistiam = 0;
   for (const l of linhas) {
     const cod = String(l[m.codigo] ?? '').trim(), end = String(l[m.endereco] ?? '').trim();
@@ -100,8 +100,7 @@ export function analisar(linhas, S, empresaId, data) {
     if (ex) {
       if (vistosEx.has(cod)) { repetidos++; continue; }
       vistosEx.add(cod); jaExistiam++;
-      if (!ex.motoristaId && mo) atribuir.set(ex.id, mo.id);
-      if (entregue && ex.status === 'pendente') { const a = entNovas.get(ex.id) || []; a.push({ cod, baixaEm: instante(m.horaEntrega ? l[m.horaEntrega] : '', data) }); entNovas.set(ex.id, a); }
+      const lista = info.get(ex.id) || []; lista.push({ cod, mid: mo?.id || null, entregue, baixaEm: entregue ? instante(m.horaEntrega ? l[m.horaEntrega] : '', data) : null }); info.set(ex.id, lista);
       continue;
     }
     if (vistos.has(cod)) { repetidos++; continue; }
@@ -121,17 +120,34 @@ export function analisar(linhas, S, empresaId, data) {
     g.pacotes.push(cod);
     if (entregue) entreguesPlat++;
   }
-  // operações sobre paradas que já existiam
-  const atualizacoes = []; let entregasAtualizadas = 0;
-  for (const [id, mid] of atribuir) atualizacoes.push({ tipo: 'motorista', paradaId: id, motoristaId: mid });
-  for (const [id, lista] of entNovas) {
-    const p = S.paradas.find((x) => x.id === id), baixaEm = lista.map((x) => x.baixaEm).sort().pop();
-    atualizacoes.push(lista.length >= p.pacotes.length ? { tipo: 'status', paradaId: id, baixaEm } : { tipo: 'dividir', paradaId: id, codigos: lista.map((x) => x.cod), baixaEm });
-    entregasAtualizadas += lista.length;
+  // O entregador da planilha vale mais do que o que está no sistema (ex.: paradas distribuídas à mão antes de o motorista
+  // ser cadastrado). Cada parada existente é reorganizada por entregador/situação; só gera mudança se algo for diferente.
+  const nomeDe = new Map(S.motoristas.map((x) => [x.id, x.nome]));
+  const atualizacoes = []; let entregasAtualizadas = 0, motoristasAtribuidos = 0, reatribuidos = 0; const trocas = new Map();
+  for (const [id, lista] of info) {
+    const p = S.paradas.find((x) => x.id === id), mapa = new Map(lista.map((x) => [x.cod, x]));
+    const grupos2 = new Map();
+    for (const cod of p.pacotes) {
+      const it = mapa.get(cod);
+      const mid = it?.mid || p.motoristaId || null;
+      const jaEnt = p.status === 'entregue';
+      const entregue = jaEnt || !!it?.entregue;
+      const baixaEm = jaEnt ? p.baixaEm : it?.entregue ? it.baixaEm : null;
+      const k = `${mid || ''}|${entregue ? 'e' : 'p'}`;
+      const g = grupos2.get(k) || { codigos: [], motoristaId: mid, status: entregue ? 'entregue' : 'pendente', baixaEm };
+      g.codigos.push(cod); if (baixaEm && (!g.baixaEm || baixaEm > g.baixaEm)) g.baixaEm = baixaEm; grupos2.set(k, g);
+      if (it) {
+        if (mid !== (p.motoristaId || null)) { if (p.motoristaId) { reatribuidos++; const t = `${nomeDe.get(p.motoristaId) || '—'} → ${nomeDe.get(mid) || '—'}`; trocas.set(t, (trocas.get(t) || 0) + 1); } else motoristasAtribuidos++; }
+        if (!jaEnt && it.entregue) entregasAtualizadas++;
+      }
+    }
+    const gs = [...grupos2.values()];
+    const igual = gs.length === 1 && gs[0].motoristaId === (p.motoristaId || null) && gs[0].status === p.status;
+    if (!igual) atualizacoes.push({ tipo: 'reparticionar', paradaId: id, grupos: gs });
   }
   const paradas = [...grupos.values()];
   return {
-    paradas, pacotes: vistos.size, repetidos, jaExistiam, atualizacoes, entregasAtualizadas, motoristasAtribuidos: atribuir.size, entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
+    paradas, pacotes: vistos.size, repetidos, jaExistiam, atualizacoes, entregasAtualizadas, motoristasAtribuidos, reatribuidos, trocas: [...trocas.entries()].sort((x, y) => y[1] - x[1]), entreguesPlat, atribuidas: paradas.filter((p) => p.motoristaId).length,
     semCad: [...faltam.values()], colunas: m,
   };
 }

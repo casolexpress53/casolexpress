@@ -116,15 +116,11 @@ export const act = {
      (atribui motorista que faltava e dá baixa no que a plataforma já mostra como entregue). */
   importar: ({ empresaId, data, arquivo, paradas, atualizacoes = [] }) => setState((s) => {
     let ps = s.paradas;
-    const ordem = { motorista: 0, status: 1, dividir: 1 };
-    for (const op of [...atualizacoes].sort((a, b) => ordem[a.tipo] - ordem[b.tipo])) {
-      const p = ps.find((x) => x.id === op.paradaId); if (!p) continue;
-      if (op.tipo === 'motorista') ps = ps.map((x) => (x.id === p.id && !x.motoristaId ? { ...x, motoristaId: op.motoristaId } : x));
-      else if (op.tipo === 'status') ps = ps.map((x) => (x.id === p.id && x.status === 'pendente' ? { ...x, status: 'entregue', baixaEm: op.baixaEm } : x));
-      else if (op.tipo === 'dividir') {
-        const cods = new Set(op.codigos);
-        ps = [...ps.map((x) => (x.id === p.id ? { ...x, pacotes: x.pacotes.filter((c) => !cods.has(c)) } : x)), { ...p, id: uid(), pacotes: p.pacotes.filter((c) => cods.has(c)), status: 'entregue', baixaEm: op.baixaEm }];
-      }
+    for (const op of atualizacoes) {
+      const p = ps.find((x) => x.id === op.paradaId); if (!p || op.tipo !== 'reparticionar') continue;
+      const gs = op.grupos, keeper = gs.reduce((a, g) => (g.codigos.length > a.codigos.length ? g : a), gs[0]);   // o maior grupo continua sendo a parada original
+      const novos = gs.filter((g) => g !== keeper).map((g) => ({ ...p, id: uid(), pacotes: g.codigos, motoristaId: g.motoristaId, status: g.status, baixaEm: g.baixaEm }));
+      ps = [...ps.map((x) => (x.id === p.id ? { ...x, pacotes: keeper.codigos, motoristaId: keeper.motoristaId, status: keeper.status, baixaEm: keeper.baixaEm } : x)), ...novos];
     }
     if (!paradas.length) return { ...s, paradas: ps };
     const id = uid();
