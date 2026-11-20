@@ -68,6 +68,10 @@ export function reducaoDoPacote(regra, dataRota, baixaEm, base) {
   return { ...calcular(regra, atrasoMin, dias, base), dias, atrasoMin };
 }
 
+/* Dias sem desconto (feriado, exceção): guardados junto da regra de atraso. motoristaId vazio = vale para todos. */
+export const isencoesDe = (S) => S.ajustes?.reducaoAtraso?.isencoes || [];
+export const estaIsento = (S, motoristaId, dia) => isencoesDe(S).find((i) => i.data === dia && (!i.motoristaId || i.motoristaId === motoristaId)) || null;
+
 /* Desconto total do motorista nas entregas do período [ini, fim] (pela data da rota), com o detalhe por faixa. */
 export function descontoAtraso(S, m, ini, fim, base) {
   const vazio = { total: 0, pacotes: 0, linhas: [], regra: null };
@@ -80,6 +84,7 @@ export function descontoAtraso(S, m, ini, fim, base) {
     if (p.motoristaId !== m.id || p.status !== 'entregue') continue;
     const r = rom.get(p.romaneioId);
     if (!r || r.data < ini || r.data > fim) continue;
+    if (estaIsento(S, m.id, r.data)) continue;   // feriado/exceção: sem desconto neste dia
     const x = reducaoDoPacote(regra, r.data, p.baixaEm, base);
     if (!x.reducao) continue;
     const g = grupos.get(x.assinatura) || { assinatura: x.assinatura, pacotes: 0, reducao: x.reducao, total: 0, min: x.atrasoMin };
@@ -129,7 +134,28 @@ export function pontualidade(S, m, ini, fim) {
     if (!r || r.data < ini || r.data > fim) continue;
     const n = p.pacotes.length; ent += n;
     const limite = new Date(`${r.data}T${regra.hora}:00-03:00`);
-    if (Math.floor((new Date(p.baixaEm) - limite) / 60000) >= 1) at += n;
+    if (!estaIsento(S, m.id, r.data) && Math.floor((new Date(p.baixaEm) - limite) / 60000) >= 1) at += n;
   }
   return { regra, entregues: ent, noHorario: ent - at, atrasados: at, pct: ent ? (ent - at) / ent : null };
+}
+
+/* Por dia da rota: quantos pacotes foram entregues depois do horário e quanto isso desconta (ou descontaria, se o dia tiver isenção).
+   Serve para ver quem recebeu o desconto e ajustar (isentar um dia). */
+export function atrasoPorDia(S, m, ini, fim, base) {
+  const rh = regraHora(S, m); if (!rh) return [];
+  const regra = regraAtraso(S, m);
+  const rom = new Map(S.romaneios.map((r) => [r.id, r]));
+  const por = new Map();
+  for (const p of S.paradas) {
+    if (p.motoristaId !== m.id || p.status !== 'entregue' || !p.baixaEm) continue;
+    const r = rom.get(p.romaneioId);
+    if (!r || r.data < ini || r.data > fim) continue;
+    const limite = new Date(`${r.data}T${rh.hora}:00-03:00`);
+    if (Math.floor((new Date(p.baixaEm) - limite) / 60000) < 1) continue;
+    const n = p.pacotes.length;
+    const red = regra && m.tipo !== 'fixo' ? reducaoDoPacote(regra, r.data, p.baixaEm, base).reducao : 0;
+    const d = por.get(r.data) || { data: r.data, atrasados: 0, reducao: 0, ultima: p.baixaEm };
+    d.atrasados += n; d.reducao += red * n; if (p.baixaEm > d.ultima) d.ultima = p.baixaEm; por.set(r.data, d);
+  }
+  return [...por.values()].sort((a, b) => a.data.localeCompare(b.data)).map((d) => ({ ...d, isento: estaIsento(S, m.id, d.data), hora: rh.hora }));
 }

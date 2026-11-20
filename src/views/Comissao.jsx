@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { acertoQuinzena, addDias, brl, centavos, dataBR, hoje, metricas, num, quinzena, quinzenaAnterior, quinzenaSeguinte } from '../lib.js';
 import { gerarPdf } from '../pdf.js';
-import { act, useStore } from '../store.js';
+import { act, souDono, useStore } from '../store.js';
 import { Chips, Icon, Money, Vazio } from '../ui.jsx';
+import AtrasoDias from '../components/AtrasoDias.jsx';
 import { H2 } from '../components/Recolher.jsx';
 
 function Desconto({ onAdd }) {
@@ -107,6 +108,7 @@ export default function Comissao() {
                         {a.descontos.map((d) => (<div className="item" key={d.id}><span>Desconto · {d.desc}</span><span className="row"><b>− {brl(d.valor)}</b>{!a.aprovado && <button className="btn sm danger" onClick={() => act.descontoDel(a.reg.id, d.id)} aria-label="Remover desconto"><Icon n="x" size={14} /></button>}</span></div>))}
                         <div className="item"><span>Líquido</span><b>{brl(a.liquido)}</b></div>
                       </div>
+                      <AtrasoDias S={S} m={m} ini={q.ini} fim={q.fim} editavel={!a.aprovado && !livre && souDono()} />
                       {a.pacotesDepois > 0 && (
                         <div className="card" style={{ padding: 12, borderColor: 'var(--bad)', marginBottom: 10 }} role="alert">
                           <p className="small"><b>{num(a.pacotesDepois)} pacote(s) foram entregues depois da aprovação</b> e não estão no valor pago. Diferença a pagar: <b>{brl(a.complemento)}</b>.</p>

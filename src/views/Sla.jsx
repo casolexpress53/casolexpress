@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { horaBR, hojeBRT, reporteHxH } from '../hxh.js';
-import { brl, num, PERIODOS, periodo, valorMotorista } from '../lib.js';
+import { brl, dataBR, num, PERIODOS, periodo, valorMotorista } from '../lib.js';
 import { descontoAtraso, pontualidade, regraAtraso } from '../atraso.js';
 import { avaliarSla, METRICAS_SLA, STATUS_SLA, temAlgumaMeta } from '../sla.js';
-import { useStore } from '../store.js';
+import { act, souDono, useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
+import AtrasoDias from '../components/AtrasoDias.jsx';
+import { isencoesDe } from '../atraso.js';
 import { H2 } from '../components/Recolher.jsx';
 
 /* resultado de uma meta: valor real (colorido) e a meta ao lado */
@@ -15,6 +17,49 @@ export const CelulaSla = ({ r }) => (r ? (
 
 const pctFmt = (v) => `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%`;
 const ddmm = (d) => d.slice(8, 10) + '/' + d.slice(5, 7);
+
+/* Quem entregou depois do horário limite no período: ranking de "ofensores", com o detalhe por dia e a opção de isentar (feriado). */
+function Ofensores({ S, linhas, pont, P }) {
+  const [aberto, setAberto] = useState('');
+  const [f, setF] = useState({ data: '', motivo: 'feriado' });
+  const podeEditar = souDono();
+  const lista = linhas.map((l) => ({ q: pont.por[l.motoristaId], m: S.motoristas.find((x) => x.id === l.motoristaId) })).filter((x) => x.m && x.q?.atrasados > 0).sort((a, b) => b.q.atrasados - a.q.atrasados);
+  const regraLigada = Object.values(pont.por).some((q) => q?.regra) || !!S.ajustes.reducaoAtraso?.ativo;
+  const isencoes = isencoesDe(S).slice().sort((a, b) => b.data.localeCompare(a.data));
+  return (
+    <div className="card">
+      <H2 id="ofensores">Entregas depois do horário (ofensores)</H2>
+      <p className="sub">Quem entregou depois do horário limite no período, com o desconto de cada um. Abra o motorista para ver os dias e isentar um dia (feriado, exceção). Dia isento não gera desconto nem conta como atraso.</p>
+      {!regraLigada ? <p className="muted small">A regra de atraso está desligada. Ligue em Ajustes → Redução por atraso na entrega.</p> : !lista.length ? <p className="muted">Ninguém entregou depois do horário neste período.</p> : (
+        <div className="list">
+          {lista.map(({ q, m }, i) => (
+            <div key={m.id}>
+              <button className="item" style={{ width: '100%', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }} onClick={() => setAberto(aberto === m.id ? '' : m.id)} aria-expanded={aberto === m.id}>
+                <span><b>{i + 1}. {m.nome}</b><br /><span className="muted small">{num(q.atrasados)} de {num(q.entregues)} entregues depois do horário · pontualidade {pctFmt(q.pct)}</span></span>
+                <span className="row">{q.desconto > 0 ? <span className="tag bad">− {brl(q.desconto)}</span> : <span className="muted small">sem desconto</span>}</span>
+              </button>
+              {aberto === m.id && <div style={{ padding: '0 4px 14px' }}><AtrasoDias S={S} m={m} ini={P.ini} fim={P.fim} editavel={podeEditar} /></div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '18px 0 6px' }}>Dias sem desconto (feriados e exceções)</h3>
+      {isencoes.length === 0 ? <p className="small muted">Nenhum dia cadastrado.</p> : (
+        <div className="list small">{isencoes.map((i) => (
+          <div className="item" key={i.id}><span><b>{dataBR(i.data)}</b>{i.motivo ? ` · ${i.motivo}` : ''} · {i.motoristaId ? `só ${S.motoristas.find((x) => x.id === i.motoristaId)?.nome || '—'}` : 'todos os motoristas'}</span>
+            {podeEditar && <button className="btn sm" onClick={() => act.removerIsencao(i.id)}>Remover</button>}</div>
+        ))}</div>
+      )}
+      {podeEditar && (
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'end', marginTop: 10 }}>
+          <label className="f">Dia<input className="inp" type="date" value={f.data} onChange={(e) => setF({ ...f, data: e.target.value })} /></label>
+          <label className="f" style={{ flex: '1 1 160px' }}>Motivo<input className="inp" maxLength={80} value={f.motivo} onChange={(e) => setF({ ...f, motivo: e.target.value })} /></label>
+          <button className="btn ac" disabled={!f.data} onClick={() => { act.isentarDia(f.data, null, f.motivo); setF({ data: '', motivo: 'feriado' }); }}>Isentar o dia para todos</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* Reporte Hora a Hora por motorista, no mesmo formato da planilha de controle da Casol */
 function Reporte({ ir }) {
@@ -31,6 +76,7 @@ function Reporte({ ir }) {
   const horaLimite = S.ajustes.reducaoAtraso?.ativo ? S.ajustes.reducaoAtraso.hora : null;
   const semPrazo = !S.ajustes.prazosCidade || !Object.keys(S.ajustes.prazosCidade).length;
   return (
+    <>
     <div className="card">
       <H2 id="reporte-hxh">Reporte hora a hora</H2>
       <p className="sub">Igual à planilha de controle: pacotes <b>carregados</b> de cada motorista e quantos já foram <b>entregues</b>, <b>vencem hoje</b>, estão <b>no prazo</b> ou <b>fora do prazo</b>. Performance = entregues ÷ carregados.</p>
@@ -78,6 +124,8 @@ function Reporte({ ir }) {
         </table></div>
       )}
     </div>
+    <Ofensores S={S} linhas={linhas} pont={pont} P={P} />
+    </>
   );
 }
 

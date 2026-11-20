@@ -163,6 +163,15 @@ export const act = {
     });
     act.upd('acertos', id, { aprovadoEm: new Date().toISOString(), lancId, snap });   // snap: valores no momento do pagamento (não mudam se a regra mudar depois)
   },
+  /* Dias sem desconto por atraso (feriado, exceção). Ficam junto da regra de atraso, em Ajustes. */
+  isentarDia: (data, motoristaId, motivo) => {
+    const r = getState().ajustes.reducaoAtraso || {};
+    act.ajustes({ reducaoAtraso: { ...r, isencoes: [...(r.isencoes || []), { id: uid(), data, motoristaId: motoristaId || null, motivo: String(motivo || '').trim().slice(0, 80) }] } });
+  },
+  removerIsencao: (id) => {
+    const r = getState().ajustes.reducaoAtraso || {};
+    act.ajustes({ reducaoAtraso: { ...r, isencoes: (r.isencoes || []).filter((i) => i.id !== id) } });
+  },
   /* Pacotes entregues depois da aprovação: lança só a diferença no caixa e atualiza os valores do acerto. */
   complementar: (acertoId, nome, q, valor, vivo, hojeISO) => {
     const reg = getState().acertos.find((x) => x.id === acertoId);
