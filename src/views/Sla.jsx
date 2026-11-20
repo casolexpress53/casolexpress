@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { horaBR, hojeBRT, reporteHxH } from '../hxh.js';
 import { brl, dataBR, num, PERIODOS, periodo, valorMotorista } from '../lib.js';
-import { descontoAtraso, pontualidade, regraAtraso } from '../atraso.js';
+import { descontoAtraso, regraAtraso, resumoMeta } from '../atraso.js';
 import { avaliarSla, METRICAS_SLA, STATUS_SLA, temAlgumaMeta } from '../sla.js';
 import { act, souDono, useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
@@ -23,19 +23,19 @@ function Ofensores({ S, linhas, pont, P }) {
   const [aberto, setAberto] = useState('');
   const [f, setF] = useState({ data: '', motivo: 'feriado' });
   const podeEditar = souDono();
-  const lista = linhas.map((l) => ({ q: pont.por[l.motoristaId], m: S.motoristas.find((x) => x.id === l.motoristaId) })).filter((x) => x.m && x.q?.atrasados > 0).sort((a, b) => b.q.atrasados - a.q.atrasados);
-  const regraLigada = Object.values(pont.por).some((q) => q?.regra) || !!S.ajustes.reducaoAtraso?.ativo;
+  const lista = linhas.map((l) => ({ q: pont.por[l.motoristaId], m: S.motoristas.find((x) => x.id === l.motoristaId) })).filter((x) => x.m && x.q?.abaixo > 0).sort((a, b) => b.q.abaixo - a.q.abaixo || b.q.desconto - a.q.desconto);
+  const regraLigada = !!S.ajustes.reducaoAtraso?.ativo || Object.values(pont.por).some((q) => q?.regra);
   const isencoes = isencoesDe(S).slice().sort((a, b) => b.data.localeCompare(a.data));
   return (
     <div className="card">
-      <H2 id="ofensores">Entregas depois do horário (ofensores)</H2>
-      <p className="sub">Quem entregou depois do horário limite no período, com o desconto de cada um. Abra o motorista para ver os dias e isentar um dia (feriado, exceção). Dia isento não gera desconto nem conta como atraso.</p>
-      {!regraLigada ? <p className="muted small">A regra de atraso está desligada. Ligue em Ajustes → Redução por atraso na entrega.</p> : !lista.length ? <p className="muted">Ninguém entregou depois do horário neste período.</p> : (
+      <H2 id="ofensores">Quem não bateu a meta do dia (ofensores)</H2>
+      <p className="sub">Motoristas que, em algum dia do período, entregaram até o horário de corte menos que a meta. Abra o motorista para ver os dias, a performance de cada um e isentar um dia (feriado, exceção). Dia isento não desconta. O dia só aparece depois do horário de corte.</p>
+      {!regraLigada ? <p className="muted small">A regra está desligada. Ligue em Ajustes → Desconto por meta do dia.</p> : !lista.length ? <p className="muted">Ninguém ficou abaixo da meta neste período.</p> : (
         <div className="list">
           {lista.map(({ q, m }, i) => (
             <div key={m.id}>
               <button className="item" style={{ width: '100%', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }} onClick={() => setAberto(aberto === m.id ? '' : m.id)} aria-expanded={aberto === m.id}>
-                <span><b>{i + 1}. {m.nome}</b><br /><span className="muted small">{num(q.atrasados)} de {num(q.entregues)} entregues depois do horário · pontualidade {pctFmt(q.pct)}</span></span>
+                <span><b>{i + 1}. {m.nome}</b><br /><span className="muted small">{num(q.abaixo)} de {num(q.fechados)} dia(s) abaixo da meta de {q.regra.meta}%</span></span>
                 <span className="row">{q.desconto > 0 ? <span className="tag bad">− {brl(q.desconto)}</span> : <span className="muted small">sem desconto</span>}</span>
               </button>
               {aberto === m.id && <div style={{ padding: '0 4px 14px' }}><AtrasoDias S={S} m={m} ini={P.ini} fim={P.fim} editavel={podeEditar} /></div>}
@@ -72,8 +72,8 @@ function Reporte({ ir }) {
   const [ate, setAte] = useState('');
   const P = modo === 'dia' ? { ini: dia || ultimo, fim: dia || ultimo } : modo === 'datas' ? { ini: de || ultimo, fim: ate || hoje } : periodo(modo);
   const { linhas, tot } = useMemo(() => reporteHxH(S, P.ini, P.fim, hoje), [S, P.ini, P.fim, hoje]);
-  const pont = useMemo(() => { const o = {}; let ent = 0, at = 0, desc = 0; for (const l of linhas) { const m = S.motoristas.find((x) => x.id === l.motoristaId); if (!m) continue; const q = pontualidade(S, m, P.ini, P.fim); const d = descontoAtraso(S, m, P.ini, P.fim, valorMotorista(S, m)).total; o[l.motoristaId] = { ...q, desconto: d }; ent += q.entregues; at += q.atrasados; desc += d; } return { por: o, ent, at, desc, pct: ent ? (ent - at) / ent : null }; }, [S, linhas, P.ini, P.fim]);
-  const horaLimite = S.ajustes.reducaoAtraso?.ativo ? S.ajustes.reducaoAtraso.hora : null;
+  const pont = useMemo(() => { const o = {}; let ab = 0, desc = 0, fech = 0; for (const l of linhas) { const m = S.motoristas.find((x) => x.id === l.motoristaId); if (!m) continue; const q = resumoMeta(S, m, P.ini, P.fim); o[l.motoristaId] = q; ab += q.abaixo; fech += q.fechados; desc += q.desconto; } return { por: o, ab, fech, desc }; }, [S, linhas, P.ini, P.fim]);
+  const regraG = S.ajustes.reducaoAtraso?.ativo ? S.ajustes.reducaoAtraso : null;
   const semPrazo = !S.ajustes.prazosCidade || !Object.keys(S.ajustes.prazosCidade).length;
   return (
     <>
@@ -93,11 +93,11 @@ function Reporte({ ir }) {
         <div className="card"><div className="k-l">⚠️ Vence hoje</div><div className="k-v">{num(tot.vence)}</div></div>
         <div className="card"><div className="k-l">🕒 No prazo</div><div className="k-v">{num(tot.prazo)}</div></div>
         <div className="card"><div className="k-l">🚨 Fora do prazo</div><div className="k-v" style={tot.fora ? { color: 'var(--bad)' } : undefined}>{num(tot.fora)}</div></div>
-        <div className="card"><div className="k-l">⏰ Pontualidade{horaLimite ? ` (até ${horaLimite})` : ''}</div><div className="k-v">{pont.pct == null ? '—' : pctFmt(pont.pct)}</div><div className="k-s">{num(pont.at)} entregue(s) depois do horário{pont.desc > 0 ? ` · − ${brl(pont.desc)}` : ''}</div></div>
+        <div className="card"><div className="k-l">🎯 Meta do dia{regraG ? ` (${regraG.metaPct ?? 95}% até ${regraG.hora})` : ''}</div><div className="k-v">{regraG ? num(pont.ab) : '—'}</div><div className="k-s">{regraG ? `dia(s) abaixo da meta${pont.desc > 0 ? ` · − ${brl(pont.desc)}` : ''}` : 'regra desligada'}</div></div>
       </div>
       {!linhas.length ? <Vazio titulo="Nada carregado" texto="Importe o relatório da plataforma em Romaneio para ver o reporte deste período." /> : (
         <div className="tbl-wrap"><table className="tbl">
-          <thead><tr><th>Turno</th><th>Carregamento</th><th>1ª entrega</th><th>Última</th><th>Motorista</th><th className="r">Carregados</th><th className="r">✅ Entregue</th><th className="r">⚠️ Vence hoje</th><th className="r">🕒 No prazo</th><th className="r">🚨 Fora do prazo</th><th className="r">Performance</th><th className="r">⏰ Pontualidade</th><th className="r">Após o horário</th><th className="r">Desconto</th><th>Cidade</th><th>Tempo de entrega</th><th>Dia carregado</th></tr></thead>
+          <thead><tr><th>Turno</th><th>Carregamento</th><th>1ª entrega</th><th>Última</th><th>Motorista</th><th className="r">Carregados</th><th className="r">✅ Entregue</th><th className="r">⚠️ Vence hoje</th><th className="r">🕒 No prazo</th><th className="r">🚨 Fora do prazo</th><th className="r">Performance</th><th className="r">🎯 Dias abaixo da meta</th><th className="r">Desconto</th><th>Cidade</th><th>Tempo de entrega</th><th>Dia carregado</th></tr></thead>
           <tbody>{linhas.map((l) => (
             <tr key={l.motoristaId}>
               <td>{l.turno || '—'}</td>
@@ -112,8 +112,7 @@ function Reporte({ ir }) {
               <td className="r">{l.fora ? <span className="tag bad">{num(l.fora)}</span> : 0}</td>
               <td className="r"><span className={`tag ${l.performance >= 0.9 ? 'ok' : l.performance >= 0.7 ? 'warn' : 'bad'}`}>{pctFmt(l.performance)}</span></td>
               {(() => { const q = pont.por[l.motoristaId]; return (<>
-                <td className="r">{q?.pct == null ? <span className="muted">—</span> : <span className={`tag ${q.atrasados ? 'warn' : 'ok'}`}>{pctFmt(q.pct)}</span>}</td>
-                <td className="r">{q?.atrasados ? <span className="tag bad">{num(q.atrasados)}</span> : q?.regra ? 0 : <span className="muted">—</span>}</td>
+                <td className="r">{!q?.regra ? <span className="muted">—</span> : q.abaixo ? <span className="tag bad">{num(q.abaixo)} de {num(q.fechados)}</span> : <span className="tag ok">{q.fechados ? `0 de ${num(q.fechados)}` : 'em andamento'}</span>}</td>
                 <td className="r">{q?.desconto > 0 ? <span className="tag bad">− {brl(q.desconto)}</span> : <span className="muted">—</span>}</td>
               </>); })()}
               <td>{l.cidade || '—'}</td>

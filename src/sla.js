@@ -1,5 +1,4 @@
 import { metricas, pct } from './lib.js';
-import { pontualidade } from './atraso.js';
 
 /*
   SLA do motorista: metas acordadas, comparadas com o que ele realmente entregou no período.
@@ -10,7 +9,6 @@ export const METRICAS_SLA = [
   { k: 'taxaEntrega', rotulo: 'Taxa de entrega', op: '>=', un: '%', ajuda: 'Pacotes entregues ÷ (entregues + com ocorrência). Mínimo.' },
   { k: 'ocorrencias', rotulo: 'Ocorrências', op: '<=', un: '%', ajuda: 'Pacotes com ocorrência ÷ (entregues + com ocorrência). Máximo.' },
   { k: 'noPrazo', rotulo: 'Entregas no prazo', op: '>=', un: '%', ajuda: 'Entregues dentro do prazo da empresa ÷ entregues. Mínimo.' },
-  { k: 'pontualidade', rotulo: 'Pontualidade', op: '>=', un: '%', ajuda: 'Entregues até o horário limite da regra de atraso (Ajustes) ÷ entregues. Mínimo. Não altera a Performance.' },
   { k: 'pacotesDia', rotulo: 'Pacotes por dia', op: '>=', un: 'pac.', ajuda: 'Entregues ÷ dias em que ele entregou. Mínimo.' },
 ];
 export const MODOS_SLA = [['padrao', 'Usar a meta padrão'], ['proprio', 'Regra própria'], ['nenhuma', 'Sem meta']];
@@ -35,7 +33,6 @@ export function avaliarSla(S, m, ini, fim) {
     taxaEntrega: concl ? d.entregues / concl : null,
     ocorrencias: concl ? d.ocorrencias / concl : null,
     noPrazo: d.entregues ? d.noPrazo / d.entregues : null,
-    pontualidade: pontualidade(S, m, ini, fim).pct,
     pacotesDia: dias ? d.entregues / dias : null,
   };
   const regras = regrasEfetivas(S, m).map((r) => {

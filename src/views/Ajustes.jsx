@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
-import { exemploFaixas, faixasDe, regraAtraso, UNIDADES } from '../atraso.js';
+import { exemploMeta, regraAtraso } from '../atraso.js';
 import { acertoQuinzena, addDias, brl, dataBR, fechamentoAtual, norm, quinzena, quinzenaAnterior, hoje } from '../lib.js';
 import { act, getState, recarregar, souDono, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
@@ -14,30 +14,17 @@ import { usePontoDono } from '../ponto.js';
 /* grava só ao sair do campo (evita regravar a cada tecla) */
 const Texto = ({ valor, onSave, ...r }) => <input className="inp" defaultValue={valor} key={valor} onBlur={(e) => e.target.value.trim() && e.target.value !== valor && onSave(e.target.value.trim())} {...r} />;
 
-/* campos da regra de redução por atraso (padrão ou própria do motorista): horário limite + faixas livres */
+/* campos da regra de desconto por meta do dia (geral ou própria do motorista) */
 function CamposAtraso({ r = {}, onChange }) {
-  const faixas = faixasDe(r);
   const set = (patch) => onChange({ ...r, ...patch });
-  const setF = (i, patch) => set({ faixas: faixas.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   return (
     <div className="stack">
       <div className="form">
-        <label className="f">Horário limite (no dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
-        <label className="f">Valor mínimo por pacote (R$, opcional)<Money valor={r.minimo || 0} onChange={(v) => set({ minimo: v })} /></label>
+        <label className="f">Meta de performance do dia (%)<input className="inp" type="number" min="1" max="100" step="0.1" inputMode="decimal" value={r.metaPct ?? 95} onChange={(e) => set({ metaPct: e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))) })} /></label>
+        <label className="f">Desconto por pacote entregue (R$)<Money valor={r.valor || 0} onChange={(v) => set({ valor: v })} /></label>
+        <label className="f">Horário de corte (do dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
       </div>
-      <div className="list">
-        {faixas.map((f, i) => (
-          <div className="item" key={i} style={{ alignItems: 'end', gap: 8, flexWrap: 'wrap' }}>
-            <label className="f" style={{ flex: '1 1 130px' }}>Quando<select className="sel" value={f.repetir ? 'cada' : 'uma'} onChange={(e) => setF(i, { repetir: e.target.value === 'cada' })}><option value="uma">Depois de (uma vez)</option><option value="cada">A cada (repete)</option></select></label>
-            <label className="f" style={{ flex: '0 1 90px' }}>Tempo<input className="inp" type="number" min="1" step="1" inputMode="numeric" value={f.apos ?? ''} onChange={(e) => setF(i, { apos: e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value))) })} /></label>
-            <label className="f" style={{ flex: '0 1 120px' }}>Unidade<select className="sel" value={f.un || 'min'} onChange={(e) => setF(i, { un: e.target.value })}>{Object.entries(UNIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-            <label className="f" style={{ flex: '1 1 130px' }}>Reduzir por pacote (R$)<Money valor={f.valor || 0} onChange={(v) => setF(i, { valor: v })} /></label>
-            <button type="button" className="btn" aria-label="Remover faixa" onClick={() => set({ faixas: faixas.filter((_, j) => j !== i) })}>Remover</button>
-          </div>
-        ))}
-      </div>
-      <div><button type="button" className="btn" onClick={() => set({ faixas: [...faixas, { apos: 1, un: 'min', valor: 0, repetir: false }] })}>+ Adicionar faixa de atraso</button></div>
-      <p className="small muted">Minutos e horas contam depois do horário limite. “Dias” conta dias de calendário depois do dia da rota (entregou no dia seguinte = 1 dia). As reduções das faixas atingidas se somam.</p>
+      <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={!!r.incluirDepois} onChange={(e) => set({ incluirDepois: e.target.checked })} /> <span>Descontar também os pacotes entregues <b>depois do corte</b> (por padrão, só os entregues até o corte)</span></label>
     </div>
   );
 }
@@ -331,22 +318,22 @@ export default function Ajustes({ ir }) {
       </div>
 
       <div className="card">
-        <H2 id="reducao-atraso">Redução por atraso na entrega</H2>
-        <p className="sub">Se o motorista entregar depois do horário combinado, o valor de <b>cada pacote</b> é reduzido. Você define o horário limite do <b>dia da rota</b> e as faixas: depois de quantos minutos, horas ou dias, ou a cada quanto tempo, e quanto reduz. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, linha por linha.</p>
-        <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar a redução por atraso para todos os motoristas</b></label>
+        <H2 id="reducao-atraso">Desconto por meta do dia</H2>
+        <p className="sub">Todo dia o sistema calcula a <b>performance de cada motorista</b>: pacotes entregues <b>até o horário de corte</b> ÷ pacotes carregados naquele dia (o dia da rota). Se ficar <b>abaixo da meta</b>, desconta o valor em <b>cada pacote entregue</b> do dia. Bateu a meta, não desconta nada. O dia só vale depois do horário de corte. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, dia por dia.</p>
+        <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar o desconto por meta do dia para todos os motoristas</b></label>
         <CamposAtraso r={S.ajustes.reducaoAtraso} onChange={(r) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ...r } })} />
         {(() => {
           const base = S.ajustes.valorPadrao > 0 ? S.ajustes.valorPadrao : (S.motoristas.find((x) => x.tipo !== 'fixo' && x.valor > 0)?.valor || 280);
           const regra = regraAtraso({ ajustes: { reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: true } } }, { tipo: 'pacote' });
           return regra ? (
             <div className="list small" style={{ marginTop: 10 }}>
-              <div className="item"><b>Exemplo com {brl(base)} por pacote</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
-              {exemploFaixas(regra, base).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{brl(f.valor)}</b></div>)}
+              <div className="item"><b>Exemplo de um dia (com {brl(base)} por pacote)</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
+              {exemploMeta(regra, base).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{brl(f.valor)}</b></div>)}
             </div>
-          ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o horário e adicione pelo menos uma faixa com valor para ver o exemplo.</p>;
+          ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o desconto por pacote e o horário de corte para ver o exemplo.</p>;
         })()}
         <h3 style={{ font: 'italic 700 16px var(--f1)', textTransform: 'uppercase', margin: '20px 0 4px' }}>Por motorista</h3>
-        <p className="small muted">Por padrão, todos seguem a regra acima. Aqui dá para dar uma regra própria a um motorista ou isentá-lo.</p>
+        <p className="small muted">Por padrão, todos seguem a regra acima. Aqui dá para dar uma meta e um desconto próprios a um motorista ou isentá-lo.</p>
         {S.motoristas.length === 0 ? <p className="small muted">Cadastre motoristas acima.</p> : (
           <div className="list">
             {S.motoristas.map((mo) => {
