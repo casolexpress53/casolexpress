@@ -76,11 +76,13 @@ export function analisar(linhas, S, empresaId, data) {
     const cab = Object.keys(linhas[0] || {}).slice(0, 12).join(', ');
     return { erro: `Não achei as colunas de ${!m.codigo ? 'código' : 'endereço'}. A planilha precisa ter uma coluna com o código do pacote e outra com o endereço. Colunas que encontrei: ${cab}${Object.keys(linhas[0] || {}).length > 12 ? '…' : ''}.` };
   }
-  // pacotes que já estão no sistema (mesma empresa e dia): em vez de ignorar, atualizam a parada (entrega, motorista)
+  // pacotes que já estão no sistema (mesma empresa, de qualquer dia: um pacote de ontem que segue pendente não duplica):
+  // em vez de ignorar, atualizam a parada (entrega, motorista)
   const existentes = new Map();
+  const romPor = new Map(S.romaneios.map((x) => [x.id, x]));
   for (const p of S.paradas) {
-    const r = S.romaneios.find((x) => x.id === p.romaneioId);
-    if (r && r.empresaId === empresaId && r.data === data) for (const c of p.pacotes) existentes.set(c, p);
+    const r = romPor.get(p.romaneioId);
+    if (r && r.empresaId === empresaId) for (const c of p.pacotes) existentes.set(c, p);
   }
   const cidades = m.cidade ? cidadesCanonicas(linhas, m.cidade) : new Map();
   const porNome = new Map(S.motoristas.map((x) => [chaveNome(x.nome), x]));

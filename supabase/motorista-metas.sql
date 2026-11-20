@@ -22,7 +22,9 @@ begin
     select e.id, e.prazo_dias from public.empresas e where e.id in (select empresa_id from rs)
   )
   select jsonb_build_object(
-    'motorista', (select to_jsonb(m) - 'user_id' - 'extra' from public.motoristas m where m.id = mid),
+    'motorista', (select to_jsonb(m) - 'user_id' from public.motoristas m where m.id = mid),
+    'valor_padrao', (select valor_padrao from public.ajustes where id = 1),
+    'reducao_atraso', (select extra->'reducaoAtraso' from public.ajustes where id = 1),
     'sla_padrao', (select sla from public.ajustes where id = 1),
     'fechamento', (select extra->'fechamento' from public.ajustes where id = 1),
     'prazos_cidade', (select extra->'prazosCidade' from public.ajustes where id = 1),

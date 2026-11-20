@@ -6,6 +6,7 @@ import { aguardarGravacao, limparAviso, temPendencia, useAviso, useSyncStatus } 
 import { logoRedonda, useTema } from './theme.js';
 import { ids_ABAS } from './equipe.js';
 import { Icon } from './ui.jsx';
+import ErroTela from './components/ErroTela.jsx';
 
 const Painel = lazy(() => import('./views/Painel.jsx'));
 const Romaneio = lazy(() => import('./views/Romaneio.jsx'));
@@ -123,7 +124,7 @@ export default function App() {
           <img src={logoRedonda(tema)} alt="Casol Express" width="52" height="52" style={{ borderRadius: '50%' }} />
           <div className="row">{Toggle}<button className="btn icon" onClick={saiu} aria-label="Sair"><Icon n="logout" size={20} /></button></div>
         </div>
-        <Suspense fallback={Carregando}><Motorista modo="motorista" motoristaId={sessao.motoristaId} /></Suspense>
+        <ErroTela><Suspense fallback={Carregando}><Motorista modo="motorista" motoristaId={sessao.motoristaId} /></Suspense></ErroTela>
       </main>
     );
   }
@@ -137,7 +138,7 @@ export default function App() {
           <img src={logoRedonda(tema)} alt="Casol Express" width="52" height="52" style={{ borderRadius: '50%' }} />
           <div className="row">{Toggle}<button className="btn icon" onClick={saiu} aria-label="Sair"><Icon n="logout" size={20} /></button></div>
         </div>
-        <Suspense fallback={Carregando}><PontoColab /></Suspense>
+        <ErroTela><Suspense fallback={Carregando}><PontoColab /></Suspense></ErroTela>
       </main>
     );
   }
@@ -169,7 +170,7 @@ export default function App() {
           <div><h1>{titulo}</h1><p>{sub}</p></div>
           <div className="tools">{Status}{Toggle}</div>
         </header>
-        <Suspense fallback={Carregando}><Tela ir={setAba} /></Suspense>
+        <ErroTela key={titulo}><Suspense fallback={Carregando}><Tela ir={setAba} /></Suspense></ErroTela>
       </main>
     </>
   );

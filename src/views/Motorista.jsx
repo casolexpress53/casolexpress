@@ -150,7 +150,7 @@ export default function Motorista({ modo = 'dono', motoristaId }) {
   const [aba, setAba] = useState('rota');
   const [lim, setLim] = useState(8);
   const [ocor, setOcor] = useState(null);
-  const id = modo === 'motorista' ? motoristaId : ver || S.motoristas[0]?.id;
+  const id = modo === 'motorista' ? motoristaId || S.motoristas[0]?.id : ver || S.motoristas[0]?.id;   // no login do motorista o estado só tem ele mesmo
   const m = S.motoristas.find((x) => x.id === id);
   const h = hoje();
 
