@@ -3,8 +3,8 @@
 
   Para cada motorista e cada DIA DA ROTA (o dia em que o pacote foi carregado):
     performance do dia = pacotes entregues até o HORÁRIO DE CORTE (ex.: 21:30 do dia da rota) ÷ pacotes carregados no dia.
-  Se a performance ficar abaixo da META (ex.: 95%), desconta o VALOR (ex.: R$ 0,20) em cada pacote entregue do dia
-  (só os que contam, isto é, entregues até o corte; opcionalmente também os entregues depois do corte).
+  Se a performance ficar abaixo da META (ex.: 95%), desconta o VALOR (ex.: R$ 0,20) em TODOS os pacotes do dia
+  (todos os carregados naquele dia, entregues ou não).
   O dia só é fechado depois do horário de corte: antes disso o dia ainda está em andamento e não desconta.
   Dias isentos (feriado, exceção) não descontam. O dia e a hora são sempre os de Brasília.
   Sem importar de lib.js (para não criar dependência circular).
@@ -64,7 +64,7 @@ export function desempenhoPorDia(S, m, ini, fim) {
     const perf = d.carregados ? d.ate / d.carregados : null;
     const abaixo = fechado && perf != null && perf * 100 < rh.meta - 1e-9;
     const isento = estaIsento(S, m.id, d.data);
-    const base = rh.incluirDepois ? d.ate + d.depois : d.ate;
+    const base = d.carregados;                                            // o desconto vale para TODOS os pacotes do dia
     const desconto = abaixo && !isento && m.tipo !== 'fixo' ? rh.valor * base : 0;
     return { ...d, perf, fechado, abaixo, isento, pacotesDesconto: abaixo ? base : 0, desconto, hora: rh.hora, meta: rh.meta, valor: rh.valor };
   });
@@ -96,11 +96,12 @@ export function resumoMeta(S, m, ini, fim) {
 }
 
 /* Exemplo para a tela de configuração (valores em centavos). */
-export function exemploMeta(regra, base = 280) {
+export function exemploMeta(regra) {
   if (!regra) return [];
-  const vezes = 100, ok = Math.ceil((regra.meta / 100) * vezes), ruim = Math.max(ok - 3, 0);
+  const total = 100, ok = Math.ceil((regra.meta / 100) * total), ruim = Math.max(ok - 3, 0);
+  const R = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   return [
-    { rotulo: `Carregou ${vezes} e entregou ${ok} até as ${regra.hora} (${Math.round((ok / vezes) * 100)}%): bateu a meta`, valor: ok * base },
-    { rotulo: `Carregou ${vezes} e entregou ${ruim} até as ${regra.hora} (${Math.round((ruim / vezes) * 100)}%): perde ${(regra.valor / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em cada um dos ${ruim}`, valor: ruim * (base - regra.valor) },
+    { rotulo: `Carregou ${total} e entregou ${ok} até as ${regra.hora} (${Math.round((ok / total) * 100)}%): bateu a meta`, valor: 0 },
+    { rotulo: `Carregou ${total} e entregou ${ruim} até as ${regra.hora} (${Math.round((ruim / total) * 100)}%): perde ${R(regra.valor)} em cada um dos ${total} pacotes do dia`, valor: regra.valor * total },
   ];
 }

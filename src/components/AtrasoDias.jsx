@@ -20,7 +20,7 @@ export default function AtrasoDias({ S, m, ini, fim, editavel }) {
       <div className="item"><b>Dias abaixo da meta de {dias[0].meta}% (corte às {dias[0].hora})</b></div>
       {dias.map((d) => (
         <div className="item" key={d.data} style={{ flexWrap: 'wrap', gap: 8 }}>
-          <span><b>{dataBR(d.data)}</b> <span className="muted">({SEM[parse(d.data).getDay()]})</span> · carregou {num(d.carregados)}, entregou {num(d.ate)} até as {d.hora} (<b>{pct(d.perf)}</b>){d.valor > 0 ? <> · <span style={d.isento ? { textDecoration: 'line-through' } : undefined} className={d.isento ? 'muted' : ''}>− {brl(d.valor * d.pacotesDesconto)}</span></> : null}</span>
+          <span><b>{dataBR(d.data)}</b> <span className="muted">({SEM[parse(d.data).getDay()]})</span> · carregou {num(d.carregados)}, entregou {num(d.ate)} até as {d.hora} (<b>{pct(d.perf)}</b>){d.valor > 0 ? <> · <span style={d.isento ? { textDecoration: 'line-through' } : undefined} className={d.isento ? 'muted' : ''}>− {brl(d.valor * d.pacotesDesconto)} ({num(d.pacotesDesconto)} pacotes do dia)</span></> : null}</span>
           <span className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             {d.isento ? <>
               <span className="tag ok">Isento{d.isento.motivo ? `: ${d.isento.motivo}` : ''}{d.isento.motoristaId ? '' : ' (todos)'}</span>

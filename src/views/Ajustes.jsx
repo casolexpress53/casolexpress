@@ -24,7 +24,7 @@ function CamposAtraso({ r = {}, onChange }) {
         <label className="f">Desconto por pacote entregue (R$)<Money valor={r.valor || 0} onChange={(v) => set({ valor: v })} /></label>
         <label className="f">Horário de corte (do dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
       </div>
-      <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={!!r.incluirDepois} onChange={(e) => set({ incluirDepois: e.target.checked })} /> <span>Descontar também os pacotes entregues <b>depois do corte</b> (por padrão, só os entregues até o corte)</span></label>
+      <p className="small muted">O desconto vale para <b>todos os pacotes carregados no dia</b>, e não só para os entregues ou os pendentes.</p>
     </div>
   );
 }
@@ -319,7 +319,7 @@ export default function Ajustes({ ir }) {
 
       <div className="card">
         <H2 id="reducao-atraso">Desconto por meta do dia</H2>
-        <p className="sub">Todo dia o sistema calcula a <b>performance de cada motorista</b>: pacotes entregues <b>até o horário de corte</b> ÷ pacotes carregados naquele dia (o dia da rota). Se ficar <b>abaixo da meta</b>, desconta o valor em <b>cada pacote entregue</b> do dia. Bateu a meta, não desconta nada. O dia só vale depois do horário de corte. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, dia por dia.</p>
+        <p className="sub">Todo dia o sistema calcula a <b>performance de cada motorista</b>: pacotes entregues <b>até o horário de corte</b> ÷ pacotes carregados naquele dia (o dia da rota). Se ficar <b>abaixo da meta</b>, desconta o valor em <b>todos os pacotes do dia</b> (todos os carregados naquele dia). Bateu a meta, não desconta nada. O dia só vale depois do horário de corte. O dia e a hora são os de Brasília. Vale para quem é pago por pacote; o salário fixo não muda. O desconto aparece na Comissão, dia por dia.</p>
         <label className="row"><input type="checkbox" checked={!!S.ajustes.reducaoAtraso?.ativo} onChange={(e) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: e.target.checked } })} /> <b>Usar o desconto por meta do dia para todos os motoristas</b></label>
         <CamposAtraso r={S.ajustes.reducaoAtraso} onChange={(r) => act.ajustes({ reducaoAtraso: { ...S.ajustes.reducaoAtraso, ...r } })} />
         {(() => {
@@ -327,8 +327,8 @@ export default function Ajustes({ ir }) {
           const regra = regraAtraso({ ajustes: { reducaoAtraso: { ...S.ajustes.reducaoAtraso, ativo: true } } }, { tipo: 'pacote' });
           return regra ? (
             <div className="list small" style={{ marginTop: 10 }}>
-              <div className="item"><b>Exemplo de um dia (com {brl(base)} por pacote)</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
-              {exemploMeta(regra, base).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{brl(f.valor)}</b></div>)}
+              <div className="item"><b>Exemplo de um dia</b><span className="muted">{S.ajustes.reducaoAtraso?.ativo ? '' : '(a regra está desligada)'}</span></div>
+              {exemploMeta(regra).map((f) => <div className="item" key={f.rotulo}><span>{f.rotulo}</span><b>{f.valor > 0 ? `− ${brl(f.valor)}` : 'sem desconto'}</b></div>)}
             </div>
           ) : <p className="small muted" style={{ marginTop: 10 }}>Preencha o desconto por pacote e o horário de corte para ver o exemplo.</p>;
         })()}
