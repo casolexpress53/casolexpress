@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { temServidor } from '../auth.js';
 import AcessoBox from '../components/AcessoBox.jsx';
-import { exemploMeta, regraAtraso } from '../atraso.js';
+import { exemploMeta, PADRAO_VALOR, regraAtraso } from '../atraso.js';
 import { acertoQuinzena, addDias, brl, dataBR, fechamentoAtual, norm, quinzena, quinzenaAnterior, hoje } from '../lib.js';
 import { act, getState, recarregar, souDono, useStore } from '../store.js';
 import { METRICAS_SLA, MODOS_SLA, regrasEfetivas } from '../sla.js';
@@ -21,7 +21,7 @@ function CamposAtraso({ r = {}, onChange }) {
     <div className="stack">
       <div className="form">
         <label className="f">Meta de performance do dia (%)<input className="inp" type="number" min="1" max="100" step="0.1" inputMode="decimal" value={r.metaPct ?? 95} onChange={(e) => set({ metaPct: e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))) })} /></label>
-        <label className="f">Desconto por pacote entregue (R$)<Money valor={r.valor || 0} onChange={(v) => set({ valor: v })} /></label>
+        <label className="f">Desconto por pacote entregue (R$)<Money valor={r.valor ?? PADRAO_VALOR} onChange={(v) => set({ valor: v })} /></label>
         <label className="f">Horário de corte (do dia da rota)<input className="inp" type="time" value={r.hora || ''} onChange={(e) => set({ hora: e.target.value })} /></label>
       </div>
       <p className="small muted">O desconto vale para <b>todos os pacotes carregados no dia</b>, e não só para os entregues ou os pendentes.</p>

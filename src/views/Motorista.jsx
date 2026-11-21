@@ -10,6 +10,7 @@ import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx
 import { horaBR, reporteHxH } from '../hxh.js';
 import { gerarPdf } from '../pdf.js';
 import { resumoMeta } from '../atraso.js';
+import AtrasoDias from '../components/AtrasoDias.jsx';
 import { apagarNota, enviarNota, fmtTamanho, useNotas } from '../notas.js';
 
 function posicao() {
@@ -93,7 +94,8 @@ function Extrato({ m, S, q }) {
           <p className="k-l">{i === 0 ? 'Quinzena atual' : 'Quinzena anterior'} · {dataBR(x.ini)} a {dataBR(x.fim)}</p>
           <div className="k-v" style={{ fontSize: 30 }}>{brl(a.liquido)}</div>
           <p className="small muted">{m.tipo === 'fixo' ? 'Salário fixo (metade na quinzena)' : a.parcial ? 'Valor pago' : `${num(a.pacotes)} pacote(s) entregue(s)`}{a.totalDesc ? ` · descontos ${brl(a.totalDesc)}` : ''}{!a.aprovado ? ' · estimativa' : ''}</p>
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <AtrasoDias S={S} m={m} ini={x.ini} fim={x.fim} />
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <span className={`tag ${a.aprovado ? 'ok' : 'warn'}`}>{a.aprovado ? 'Acerto aprovado' : 'Em aberto'}</span>
             <button className="btn sm" disabled={!!busy} onClick={() => pdf([{ x, a }], 'Extrato da quinzena', `extrato-${x.ini}.pdf`, '')}>{busy === `extrato-${x.ini}.pdf` ? 'Gerando…' : 'Baixar PDF'}</button>
           </div>
@@ -144,6 +146,7 @@ function MeuReporte({ m, S }) {
         </div>
         <p className="small muted">{r.carga ? `Carregamento ${horaBR(r.carga)} (${r.turno}) · ` : ''}1ª entrega {r.primeira ? horaBR(r.primeira) : 'não iniciada'} · última {r.ultima ? horaBR(r.ultima) : 'não iniciada'}</p>
       </>)}
+      <AtrasoDias S={S} m={m} ini={per.P.ini} fim={per.P.fim} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { gerarPdf } from '../pdf.js';
 import { act, souDono, useStore } from '../store.js';
 import { Chips, Icon, Money, Vazio } from '../ui.jsx';
 import AtrasoDias from '../components/AtrasoDias.jsx';
+import { COLUNAS_DESCONTO, linhasDescontos } from '../relatorio-meta.js';
 import { H2 } from '../components/Recolher.jsx';
 
 function Desconto({ onAdd }) {
@@ -38,6 +39,10 @@ export default function Comissao() {
   const colunas = ['Motorista', 'Pacotes', 'Bruto', 'Descontos', 'Líquido', 'Situação'];
   const resumoDe = (lista) => [['Total líquido', brl(lista.reduce((t, a) => t + a.liquido, 0))], ['Já pago', brl(lista.filter((a) => a.aprovado).reduce((t, a) => t + a.liquido, 0))], ['Falta pagar', brl(lista.filter((a) => !a.aprovado).reduce((t, a) => t + a.liquido, 0))], ['Descontos do período', brl(lista.reduce((t, a) => t + a.totalDesc, 0))]];
   const pdfQuinzena = () => gerarPdf({ titulo: 'Fechamento da quinzena', subtitulo: `${dataBR(q.ini)} a ${dataBR(q.fim)}`, colunas, linhas: linhasPdf(acertos), resumo: resumoDe(acertos), arquivo: `fechamento-quinzena-${q.ini}.pdf` });
+  const pdfDescontos = (motoristas, titulo, arquivo) => {
+    const r = linhasDescontos(S, motoristas, q.ini, q.fim);
+    return gerarPdf({ titulo, subtitulo: `${dataBR(q.ini)} a ${dataBR(q.fim)}`, colunas: COLUNAS_DESCONTO, linhas: r.linhas, arquivo, resumo: [['Dias analisados', num(r.dias)], ['Dias abaixo da meta', num(r.abaixo)], ['Total descontado', brl(r.total)]], nota: 'Meta do dia = pacotes entregues até o horário de corte ÷ pacotes carregados no dia. Abaixo da meta: desconto em todos os pacotes do dia. Dias isentos não descontam.' });
+  };
   const pdfMes = () => {
     const q1 = quinzena(q.ini.slice(0, 8) + '01'), q2 = quinzenaSeguinte(q1);
     const juntos = S.motoristas.map((m) => {
@@ -81,6 +86,7 @@ export default function Comissao() {
         ) : <p className="muted small">Informe quanto cada parceira paga por pacote em Ajustes, em Empresas. Assim o sistema mostra quanto entrou, quanto vai para os motoristas e quanto sobra.</p>}
         <div className="row" style={{ marginTop: 16 }}>
           <button className="btn ac" onClick={pdfQuinzena}><Icon n="print" size={18} /> Baixar fechamento da quinzena (PDF)</button>
+          <button className="btn" onClick={() => pdfDescontos(S.motoristas.filter((m) => m.tipo !== 'fixo'), 'Relatório de descontos por meta do dia', `descontos-${q.ini}-${q.fim}.pdf`)}><Icon n="print" size={18} /> Relatório de descontos e SLA (PDF)</button>
           <button className="btn" onClick={pdfMes}><Icon n="print" size={18} /> Baixar fechamento do mês (PDF)</button>
         </div>
         <p className="small muted" style={{ marginTop: 10 }}>O fechamento traz o total de todos os motoristas, o que já foi pago, o que falta pagar e os descontos do período.</p>
@@ -109,6 +115,7 @@ export default function Comissao() {
                         <div className="item"><span>Líquido</span><b>{brl(a.liquido)}</b></div>
                       </div>
                       <AtrasoDias S={S} m={m} ini={q.ini} fim={q.fim} editavel={!a.aprovado && !livre && souDono()} />
+                      <div style={{ margin: '8px 0 12px' }}><button className="btn sm" onClick={() => pdfDescontos([m], `Descontos e SLA · ${m.nome}`, `descontos-${m.nome.split(' ')[0].toLowerCase()}-${q.ini}.pdf`)}><Icon n="print" size={16} /> PDF do SLA e descontos deste motorista</button></div>
                       {a.pacotesDepois > 0 && (
                         <div className="card" style={{ padding: 12, borderColor: 'var(--bad)', marginBottom: 10 }} role="alert">
                           <p className="small"><b>{num(a.pacotesDepois)} pacote(s) foram entregues depois da aprovação</b> e não estão no valor pago. Diferença a pagar: <b>{brl(a.complemento)}</b>.</p>

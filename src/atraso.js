@@ -11,6 +11,9 @@
 */
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const centavos = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0);
+// valores do contrato com a J&T usados enquanto o campo nunca foi preenchido: meta 95%, R$ 0,20 por pacote
+export const PADRAO_META = 95, PADRAO_VALOR = 20;
+const valorDe = (r) => (r.valor === undefined || r.valor === null ? PADRAO_VALOR : centavos(r.valor));
 
 /* A regra que vale para o motorista: geral (Ajustes), própria, ou nenhuma. null = sem desconto. */
 export function regraAtraso(S, m) {
@@ -19,9 +22,9 @@ export function regraAtraso(S, m) {
   const r = modo === 'proprio' ? m.reducaoAtraso : S.ajustes?.reducaoAtraso;
   if (!r || (modo !== 'proprio' && !r.ativo)) return null;
   if (!HORA.test(String(r.hora || ''))) return null;
-  const valor = centavos(r.valor);
+  const valor = valorDe(r);
   if (!valor) return null;
-  const meta = Number.isFinite(Number(r.metaPct)) && Number(r.metaPct) > 0 ? Math.min(Number(r.metaPct), 100) : 95;
+  const meta = Number.isFinite(Number(r.metaPct)) && Number(r.metaPct) > 0 ? Math.min(Number(r.metaPct), 100) : PADRAO_META;
   return { hora: r.hora, meta, valor, incluirDepois: !!r.incluirDepois };
 }
 
@@ -32,8 +35,8 @@ export function regraHora(S, m) {
   const r = modo === 'proprio' ? m.reducaoAtraso : S.ajustes?.reducaoAtraso;
   if (!r || (modo !== 'proprio' && !r.ativo)) return null;
   if (!HORA.test(String(r.hora || ''))) return null;
-  const meta = Number.isFinite(Number(r.metaPct)) && Number(r.metaPct) > 0 ? Math.min(Number(r.metaPct), 100) : 95;
-  return { hora: r.hora, meta, valor: centavos(r.valor), incluirDepois: !!r.incluirDepois };
+  const meta = Number.isFinite(Number(r.metaPct)) && Number(r.metaPct) > 0 ? Math.min(Number(r.metaPct), 100) : PADRAO_META;
+  return { hora: r.hora, meta, valor: valorDe(r), incluirDepois: !!r.incluirDepois };
 }
 
 /* Dias sem desconto (feriado, exceção): guardados junto da regra. motoristaId vazio = vale para todos. */
@@ -66,7 +69,9 @@ export function desempenhoPorDia(S, m, ini, fim) {
     const isento = estaIsento(S, m.id, d.data);
     const base = d.carregados;                                            // o desconto vale para TODOS os pacotes do dia
     const desconto = abaixo && !isento && m.tipo !== 'fixo' ? rh.valor * base : 0;
-    return { ...d, perf, fechado, abaixo, isento, pacotesDesconto: abaixo ? base : 0, desconto, hora: rh.hora, meta: rh.meta, valor: rh.valor };
+    const pendentes = d.carregados - d.ate - d.depois;
+    const situacao = !fechado ? 'andamento' : abaixo ? (isento ? 'isento' : 'abaixo') : 'bateu';
+    return { ...d, pendentes, perf, fechado, abaixo, isento, situacao, pacotesDesconto: abaixo ? base : 0, desconto, hora: rh.hora, meta: rh.meta, valor: rh.valor };
   });
 }
 

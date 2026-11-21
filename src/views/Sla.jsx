@@ -7,6 +7,8 @@ import { act, souDono, useStore } from '../store.js';
 import { Chips, Icon, Vazio } from '../ui.jsx';
 import FiltroPeriodo, { useFiltroPeriodo } from '../components/FiltroPeriodo.jsx';
 import AtrasoDias from '../components/AtrasoDias.jsx';
+import { gerarPdf } from '../pdf.js';
+import { COLUNAS_DESCONTO, linhasDescontos } from '../relatorio-meta.js';
 import { isencoesDe } from '../atraso.js';
 import { H2 } from '../components/Recolher.jsx';
 
@@ -74,6 +76,15 @@ function Reporte({ ir }) {
   const { linhas, tot } = useMemo(() => reporteHxH(S, P.ini, P.fim, hoje), [S, P.ini, P.fim, hoje]);
   const pont = useMemo(() => { const o = {}; let ab = 0, desc = 0, fech = 0; for (const l of linhas) { const m = S.motoristas.find((x) => x.id === l.motoristaId); if (!m) continue; const q = resumoMeta(S, m, P.ini, P.fim); o[l.motoristaId] = q; ab += q.abaixo; fech += q.fechados; desc += q.desconto; } return { por: o, ab, fech, desc }; }, [S, linhas, P.ini, P.fim]);
   const regraG = S.ajustes.reducaoAtraso?.ativo ? S.ajustes.reducaoAtraso : null;
+  const sub = `${dataBR(P.ini)} a ${dataBR(P.fim)}`;
+  const pdfSla = () => gerarPdf({
+    titulo: 'SLA dos motoristas', subtitulo: sub, arquivo: `sla-${P.ini}-${P.fim}.pdf`,
+    colunas: ['Motorista', 'Carregados', 'Entregue', 'Vence hoje', 'No prazo', 'Fora do prazo', 'Performance', 'Dias abaixo da meta', 'Desconto'],
+    linhas: linhas.map((l) => { const q = pont.por[l.motoristaId]; return [l.nome, num(l.carregados), num(l.ent), num(l.vence), num(l.prazo), num(l.fora), pctFmt(l.performance), q?.regra ? `${num(q.abaixo)} de ${num(q.fechados)}` : '—', q?.desconto > 0 ? `− ${brl(q.desconto)}` : '—']; }),
+    resumo: [['Performance geral', tot.carregados ? pctFmt(tot.performance) : '—'], ['Carregados', num(tot.carregados)], ['Entregues', num(tot.ent)], ['Total descontado', brl(pont.desc)]],
+    nota: 'Performance = entregues ÷ carregados. Dias abaixo da meta: pacotes entregues até o horário de corte ÷ carregados no dia, abaixo da meta definida em Ajustes.',
+  });
+  const pdfDescontos = () => { const r = linhasDescontos(S, S.motoristas.filter((m) => linhas.some((l) => l.motoristaId === m.id) && m.tipo !== 'fixo'), P.ini, P.fim); return gerarPdf({ titulo: 'Descontos por meta do dia', subtitulo: sub, arquivo: `descontos-${P.ini}-${P.fim}.pdf`, colunas: COLUNAS_DESCONTO, linhas: r.linhas, resumo: [['Dias analisados', num(r.dias)], ['Dias abaixo da meta', num(r.abaixo)], ['Total descontado', brl(r.total)]], nota: 'Abaixo da meta: desconto em todos os pacotes carregados no dia. Dias isentos não descontam.' }); };
   const semPrazo = !S.ajustes.prazosCidade || !Object.keys(S.ajustes.prazosCidade).length;
   return (
     <>
@@ -85,6 +96,8 @@ function Reporte({ ir }) {
         {modo === 'datas' && <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}><label className="f">De<input className="inp" type="date" value={de || P.ini} max={ate || hoje} onChange={(e) => setDe(e.target.value)} /></label><label className="f">Até<input className="inp" type="date" value={ate || P.fim} min={de || undefined} max={hoje} onChange={(e) => setAte(e.target.value)} /></label></div>}
         {modo === 'dia' && <label className="row" style={{ gap: 8 }}><span className="small muted">Dia carregado</span><input className="inp" type="date" value={dia || ultimo} max={hoje} onChange={(e) => setDia(e.target.value)} /></label>}
       </div>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap', margin: '0 0 12px' }}><button className="btn sm" onClick={pdfSla}><Icon n="print" size={16} /> SLA do período (PDF)</button><button className="btn sm" onClick={pdfDescontos}><Icon n="print" size={16} /> Descontos por dia (PDF)</button></div>
+      {S.ajustes.reducaoAtraso?.ativo ? null : <p className="small muted">O desconto por meta do dia está <b>desligado</b>. Ligue em Ajustes → Desconto por meta do dia.</p>}
       {semPrazo && <p className="small muted">Prazo por cidade ainda não cadastrado: todas as cidades contam como D + 0 (vence no dia do carregamento). <button className="btn sm" onClick={() => ir?.('ajustes')}>Cadastrar prazos</button></p>}
       <div className="grid g3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', margin: '10px 0' }}>
         <div className="card"><div className="k-l">Performance</div><div className="k-v">{tot.carregados ? pctFmt(tot.performance) : '—'}</div></div>
